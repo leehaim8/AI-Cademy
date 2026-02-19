@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import logo from "../assets/ai-cademy-logo.svg";
 
 export default function Navbar() {
@@ -8,19 +9,21 @@ export default function Navbar() {
       sticky top-0 z-50"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <img
-          src={logo}
-          alt="AI Cademy logo"
-          className="h-9 w-9 drop-shadow-[0_0_18px_rgba(56,189,248,0.8)]"
-        />
-        <div className="flex flex-col min-w-0">
-          <span className="text-sm font-semibold tracking-wide text-slate-50">
-            AI CADEMY
-          </span>
-          <span className="text-[11px] text-slate-400 leading-tight break-words">
-            AI CADEMY – Teaching Agents Platform
-          </span>
-        </div>
+        <Link to="/" className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
+          <img
+            src={logo}
+            alt="AI Cademy logo"
+            className="h-9 w-9 drop-shadow-[0_0_18px_rgba(56,189,248,0.8)]"
+          />
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-semibold tracking-wide text-slate-50">
+              AI CADEMY
+            </span>
+            <span className="text-[11px] text-slate-400 leading-tight break-words">
+              AI CADEMY – Teaching Agents Platform
+            </span>
+          </div>
+        </Link>
       </div>
 
       <div className="flex items-center gap-6">
