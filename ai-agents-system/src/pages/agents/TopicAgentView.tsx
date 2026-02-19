@@ -1,4 +1,4 @@
-import { useMemo, useState, ChangeEvent, FormEvent } from "react";
+import { useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
 
 const TOPIC_STOPWORDS = [
   "the",
@@ -100,7 +100,7 @@ export default function TopicAgentView() {
     });
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setHasSubmitted(true);
     setIsAnalyzing(true);
