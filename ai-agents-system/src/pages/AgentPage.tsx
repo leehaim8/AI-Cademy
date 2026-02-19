@@ -63,7 +63,7 @@ export default function AgentPage() {
             Agent workspace
           </p>
           <Link
-            to="/"
+            to="/home"
             className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
           >
             <span className="text-sm">←</span>

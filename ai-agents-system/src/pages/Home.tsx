@@ -1,6 +1,10 @@
 import AgentCard from "../components/AgentCard";
+import { getCurrentUser } from "../lib/authStorage";
 
 export default function Home() {
+  const currentUser = getCurrentUser();
+  const firstName = currentUser?.full_name?.split(" ")[0] ?? "there";
+
   const agents = [
     {
       id: "topic",
@@ -51,7 +55,7 @@ export default function Home() {
           AI CADEMY platform
         </p>
         <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight">
-          Welcome back, Lee 👋
+          Welcome back, {firstName} 👋
         </h1>
         <p className="max-w-2xl text-sm text-slate-300">
           Pick an agent to help you design courses, generate assignments
