@@ -40,7 +40,8 @@ export default function Home() {
     {
       id: "code-review",
       title: "Pedagogical Code Review Agent",
-      description: "Reviews student code from a pedagogical view.",
+      description:
+        "Creates a sample solution and explains a pedagogical code review (demo only).",
       emoji: "💻",
     },
   ];
