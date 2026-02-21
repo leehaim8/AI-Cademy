@@ -1,4 +1,5 @@
 import { useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 const TOPIC_STOPWORDS = [
   "the",
@@ -43,6 +44,7 @@ type UploadedFile = {
 };
 
 export default function TopicAgentView() {
+  const navigate = useNavigate();
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [text, setText] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -282,10 +284,26 @@ export default function TopicAgentView() {
           </ul>
         )}
 
+        {hasSubmitted && topics.length > 0 && (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/agent/syllabus", {
+                  state: { fromTopicAgent: true, topics },
+                })
+              }
+              className="inline-flex items-center gap-2 rounded-lg border border-sky-500/60 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-sky-100 hover:bg-sky-500/10 hover:border-sky-400"
+            >
+              <span>Use topics in Syllabus Builder</span>
+              <span>📚</span>
+            </button>
+          </div>
+        )}
+
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          In a real agent, this panel would run a full topic modeling
-          pipeline (for example, using embeddings and clustering) and let you
-          pin, merge or rename topics.
+          Key topics are extracted from your material. You can send them to
+          the Syllabus Builder or adjust them manually there.
         </p>
       </div>
     </div>
