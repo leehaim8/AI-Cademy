@@ -11,8 +11,8 @@ React + TypeScript frontend (Vite) with a Python backend (FastAPI + MongoDB) for
 
 ## Project structure
 
-- `src/` frontend code
-- `backend/main.py` FastAPI server
+- `src/` frontend code (`ai-agents-system`)
+- `../backend/main.py` FastAPI server (repo root)
 - MongoDB database/collection is created automatically on first write
 
 ## Run locally
@@ -20,16 +20,16 @@ React + TypeScript frontend (Vite) with a Python backend (FastAPI + MongoDB) for
 ### 1) Start backend
 
 ```bash
-cd ai-agents-system
-python3 -m venv .venv
-source .venv/bin/activate
+cd ..
+python3 -m venv backend/.venv
+source backend/.venv/bin/activate
 pip install -r backend/requirements.txt
 
 # Optional: override defaults
 export MONGODB_URI="mongodb://127.0.0.1:27017"
 export MONGODB_DB_NAME="ai_cademy"
 
-uvicorn backend.main:app --reload --port 8000
+python -m uvicorn backend.main:app --reload --port 8000 --env-file backend/.env
 ```
 
 Backend URL: `http://127.0.0.1:8000`
