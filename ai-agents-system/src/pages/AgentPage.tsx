@@ -26,9 +26,9 @@ const agentRegistry = {
     Component: HomeworkAgentView,
   },
   evaluation: {
-    title: "Homework Evaluation Assistant",
+    title: "Homework Checking Agent",
     description:
-      "Experiment with grading rubrics and feedback flows for student submissions.",
+      "Paste an assignment, rubric and student answer to get a suggested grade and feedback.",
     Component: EvaluationAgentView,
   },
   booklet: {

@@ -26,8 +26,9 @@ export default function Home() {
     },
     {
       id: "evaluation",
-      title: "Homework Evaluation Assistant",
-      description: "Assists in grading and feedback.",
+      title: "Homework Checking Agent",
+      description:
+        "Checks homework against your rubric and suggests a grade.",
       emoji: "✅",
     },
     {
