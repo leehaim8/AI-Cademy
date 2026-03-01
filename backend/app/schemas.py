@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr, Field
+from typing import Any, Literal, Optional
 
 
 class SignUpPayload(BaseModel):
@@ -16,3 +17,73 @@ class SignInPayload(BaseModel):
 
 class UpdateUserPayload(BaseModel):
     full_name: str = Field(min_length=2, max_length=120)
+
+
+class CourseCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    owner_user_id: str
+    code: Optional[str] = None
+    term: Optional[str] = None
+
+
+class CourseOut(BaseModel):
+    id: str
+    name: str
+    owner_user_id: str
+    code: Optional[str] = None
+    term: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class CourseMemberCreate(BaseModel):
+    user_id: str
+    role_in_course: Optional[Literal["lecturer", "ta", "student"]] = "lecturer"
+
+
+class CourseMemberOut(BaseModel):
+    id: str
+    course_id: str
+    user_id: str
+    role_in_course: Optional[Literal["lecturer", "ta", "student"]] = None
+
+
+class CourseAgentUpdate(BaseModel):
+    agent_key: str
+    enabled: bool
+
+
+class CourseAgentOut(BaseModel):
+    id: str
+    course_id: str
+    agent_key: str
+    enabled: bool
+
+
+class SessionCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=200)
+    notes: Optional[str] = None
+
+
+class SessionOut(BaseModel):
+    id: str
+    course_id: str
+    agent_key: str
+    title: str
+    notes: Optional[str] = None
+    created_at: str
+    created_by_user_id: Optional[str] = None
+
+
+class SessionRunCreate(BaseModel):
+    input_data: Any
+    output_data: Any
+    status: Literal["success", "error", "running"] = "running"
+
+
+class SessionRunOut(BaseModel):
+    id: str
+    session_id: str
+    input_data: Any
+    output_data: Any
+    status: Literal["success", "error", "running"]
+    created_at: str

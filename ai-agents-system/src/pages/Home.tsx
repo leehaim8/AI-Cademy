@@ -1,9 +1,14 @@
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import AgentCard from "../components/AgentCard";
 import { getCurrentUser } from "../lib/authStorage";
+import { listEnabledAgents } from "../lib/courseStore";
 
 export default function Home() {
   const currentUser = getCurrentUser();
   const firstName = currentUser?.full_name?.split(" ")[0] ?? "there";
+  const [searchParams] = useSearchParams();
+  const courseId = searchParams.get("courseId") ?? "";
 
   const agents = [
     {
@@ -46,6 +51,22 @@ export default function Home() {
     },
   ];
 
+  const enabledAgents = useMemo(() => {
+    if (!courseId) return null;
+    return listEnabledAgents(courseId);
+  }, [courseId]);
+
+  const filteredAgents = useMemo(() => {
+    if (!courseId || !enabledAgents) return agents;
+    return agents.filter((agent) => {
+      const normalized = agent.id.replace("-", "_");
+      return Boolean(enabledAgents[normalized]);
+    });
+  }, [agents, courseId, enabledAgents]);
+
+  const showEmptyState =
+    Boolean(courseId) && enabledAgents && filteredAgents.length === 0;
+
   return (
     <div
       className="min-h-screen px-6 py-10
@@ -66,6 +87,20 @@ export default function Home() {
         </p>
       </header>
 
+      {showEmptyState ? (
+        <div className="mb-6 rounded-xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>No agents enabled for this course yet.</span>
+            <Link
+              to={`/courses/${courseId}/settings`}
+              className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+            >
+              Choose agents for this course
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <div
         className="
           grid gap-6
@@ -74,12 +109,16 @@ export default function Home() {
           lg:grid-cols-3
         "
       >
-        {agents.map((agent) => (
+        {filteredAgents.map((agent) => (
           <AgentCard
             key={agent.id}
             title={agent.title}
             description={agent.description}
-            route={`/agent/${agent.id}`}
+            route={
+              courseId
+                ? `/courses/${courseId}/agents/${agent.id.replace("-", "_")}`
+                : `/agent/${agent.id}`
+            }
             emoji={agent.emoji}
           />
         ))}

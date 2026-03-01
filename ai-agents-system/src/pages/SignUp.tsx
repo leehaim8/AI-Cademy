@@ -25,7 +25,7 @@ export default function SignUp() {
         password,
       });
       setCurrentUser(response.user);
-      navigate("/home");
+      navigate("/courses");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Sign up failed.";
@@ -36,7 +36,7 @@ export default function SignUp() {
   }
 
   if (currentUser) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/courses" replace />;
   }
 
   return (

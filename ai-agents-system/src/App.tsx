@@ -13,6 +13,9 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
+import CoursesPage from "./pages/CoursesPage";
+import CourseSettingsPage from "./pages/CourseSettingsPage";
+import CourseAgentPage from "./pages/CourseAgentPage";
 import { getCurrentUser } from "./lib/authStorage";
 
 function RequireAuth({ children }: { children: ReactElement }) {
@@ -33,7 +36,7 @@ function AppRoutes() {
     <>
       {!hideNavbar && <Navbar />}
       <Routes>
-        <Route path="/" element={<Navigate to="/signin" replace />} />
+        <Route path="/" element={<Navigate to="/courses" replace />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
         <Route
@@ -41,6 +44,30 @@ function AppRoutes() {
           element={
             <RequireAuth>
               <Home />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <RequireAuth>
+              <CoursesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/courses/:courseId/settings"
+          element={
+            <RequireAuth>
+              <CourseSettingsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/courses/:courseId/agents/:agentKey"
+          element={
+            <RequireAuth>
+              <CourseAgentPage />
             </RequireAuth>
           }
         />
@@ -68,7 +95,7 @@ function AppRoutes() {
             </RequireAuth>
           }
         />
-        <Route path="*" element={<Navigate to="/signin" replace />} />
+        <Route path="*" element={<Navigate to="/courses" replace />} />
       </Routes>
     </>
   );

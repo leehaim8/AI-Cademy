@@ -51,7 +51,7 @@ export default function Navbar() {
       sticky top-0 z-50"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <Link to="/home" className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
+        <Link to="/courses" className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
           <img
             src={logo}
             alt="AI Cademy logo"

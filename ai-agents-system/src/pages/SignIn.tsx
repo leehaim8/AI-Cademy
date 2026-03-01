@@ -20,7 +20,7 @@ export default function SignIn() {
     try {
       const response = await signIn({ email, password });
       setCurrentUser(response.user);
-      navigate("/home");
+      navigate("/courses");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Sign in failed.";
@@ -31,7 +31,7 @@ export default function SignIn() {
   }
 
   if (currentUser) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/courses" replace />;
   }
 
   return (
