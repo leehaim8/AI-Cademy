@@ -39,19 +39,20 @@ function AppRoutes() {
         <Route path="/" element={<Navigate to="/courses" replace />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route
-          path="/home"
-          element={
-            <RequireAuth>
-              <Home />
-            </RequireAuth>
-          }
-        />
+        <Route path="/home" element={<Navigate to="/courses" replace />} />
         <Route
           path="/courses"
           element={
             <RequireAuth>
               <CoursesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/courses/:courseId/agents"
+          element={
+            <RequireAuth>
+              <Home />
             </RequireAuth>
           }
         />

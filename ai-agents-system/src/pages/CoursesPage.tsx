@@ -20,9 +20,10 @@ export default function CoursesPage() {
   }, [currentUser]);
 
   const firstName = useMemo(
-    () => currentUser?.full_name?.split(" ")[0] ?? "there",
+    () => currentUser?.full_name?.split(" ")[0] ?? "",
     [currentUser?.full_name],
   );
+  const headline = firstName ? `My courses, ${firstName}` : "My courses";
 
   function handleCreateCourse() {
     if (!currentUser) return;
@@ -45,7 +46,7 @@ export default function CoursesPage() {
   }
 
   function handleOpenCourse(courseId: string) {
-    const target = `/home?courseId=${encodeURIComponent(courseId)}`;
+    const target = `/courses/${encodeURIComponent(courseId)}/agents`;
     window.location.href = target;
   }
 
@@ -60,7 +61,7 @@ export default function CoursesPage() {
           AI CADEMY platform
         </p>
         <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight">
-          Choose a course, {firstName}
+          {headline}
         </h1>
         <p className="max-w-2xl text-sm text-slate-300">
           Courses are the starting point for your agent workspaces.
@@ -69,7 +70,6 @@ export default function CoursesPage() {
 
       <div className="mb-8 rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-100">My Courses</h2>
           <button
             type="button"
             onClick={() => setShowForm((prev) => !prev)}

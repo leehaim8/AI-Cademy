@@ -43,7 +43,7 @@ type AgentState =
   | "draft_ready"
   | "error";
 
-type TabKey = "outline" | "draft" | "log" | "export";
+type TabKey = "outline" | "draft" | "export";
 
 const defaultConfig: BookletConfig = {
   courseName: "",
@@ -461,7 +461,6 @@ export default function BookletAgentView() {
                 {[
                   { key: "outline", label: "Outline" },
                   { key: "draft", label: "Booklet Draft" },
-                  { key: "log", label: "Run Log" },
                   { key: "export", label: "Export" },
                 ].map((tab) => (
                   <button
@@ -558,39 +557,6 @@ export default function BookletAgentView() {
                     <p className="text-xs text-slate-400">
                       Generate draft sections after the outline is ready.
                     </p>
-                  )}
-                </div>
-              ) : null}
-
-              {activeTab === "log" ? (
-                <div className="flex flex-col gap-2 text-xs text-slate-300">
-                  {runLog.length === 0 ? (
-                    <p className="text-xs text-slate-400">Run activity will appear here.</p>
-                  ) : (
-                    runLog.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2"
-                      >
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] text-slate-500">{item.timestamp}</span>
-                          <span className="text-xs text-slate-200">{item.message}</span>
-                        </div>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                            item.status === "success"
-                              ? "bg-emerald-500/20 text-emerald-200"
-                              : item.status === "error"
-                                ? "bg-rose-500/20 text-rose-200"
-                                : item.status === "warning"
-                                  ? "bg-amber-500/20 text-amber-200"
-                                  : "bg-slate-700/40 text-slate-300"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-                    ))
                   )}
                 </div>
               ) : null}

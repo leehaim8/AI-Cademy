@@ -77,7 +77,7 @@ export default function CourseAgentPage() {
             Agent workspace
           </p>
           <Link
-            to={courseId ? `/home?courseId=${courseId}` : "/home"}
+            to={courseId ? `/courses/${courseId}/agents` : "/courses"}
             className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
           >
             <span className="text-sm">←</span>

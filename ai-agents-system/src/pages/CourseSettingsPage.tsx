@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   agentCatalog,
   listEnabledAgents,
@@ -8,6 +8,7 @@ import {
 import { getCourse } from "../lib/courseStore";
 
 export default function CourseSettingsPage() {
+  const navigate = useNavigate();
   const { courseId = "" } = useParams();
   const course = courseId ? getCourse(courseId) : null;
   const [enabled, setEnabled] = useState<Record<string, boolean>>(
@@ -15,12 +16,40 @@ export default function CourseSettingsPage() {
   );
 
   const agents = useMemo(() => agentCatalog, []);
+  const normalizedEnabled = useMemo(
+    () =>
+      Object.fromEntries(
+        agentCatalog.map((agent) => [
+          agent.key,
+          enabled[agent.key] ?? true,
+        ]),
+      ),
+    [enabled],
+  );
 
   function handleToggle(agentKey: string, value: boolean) {
     if (!courseId) return;
     const next = { ...enabled, [agentKey]: value };
     setEnabled(next);
     setEnabledAgents(courseId, next);
+  }
+
+  function handleClearAll() {
+    if (!courseId) return;
+    const cleared = Object.fromEntries(
+      agentCatalog.map((agent) => [agent.key, false]),
+    );
+    setEnabled(cleared);
+    setEnabledAgents(courseId, cleared);
+  }
+
+  function handleConfirm() {
+    if (courseId) {
+      setEnabledAgents(courseId, normalizedEnabled);
+      navigate(`/courses/${courseId}/agents`);
+      return;
+    }
+    navigate("/courses");
   }
 
   return (
@@ -42,20 +71,21 @@ export default function CourseSettingsPage() {
               {course ? `Course: ${course.name}` : "Select a course to edit."}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to={courseId ? `/home?courseId=${courseId}` : "/home"}
-              className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
-            >
-              <span className="text-sm">←</span>
-              <span>Back to dashboard</span>
-            </Link>
-            <Link
-              to={courseId ? `/home?courseId=${courseId}` : "/home"}
+          <div className="flex flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={handleConfirm}
               className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-white"
             >
               OK
-            </Link>
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 hover:border-slate-500"
+            >
+              Clear all
+            </button>
           </div>
         </div>
 
@@ -102,3 +132,4 @@ export default function CourseSettingsPage() {
     </div>
   );
 }
+

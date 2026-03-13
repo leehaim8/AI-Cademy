@@ -1,14 +1,15 @@
 import { useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import AgentCard from "../components/AgentCard";
-import { getCurrentUser } from "../lib/authStorage";
-import { listEnabledAgents } from "../lib/courseStore";
+import { getCourse, listEnabledAgents } from "../lib/courseStore";
 
 export default function Home() {
-  const currentUser = getCurrentUser();
-  const firstName = currentUser?.full_name?.split(" ")[0] ?? "there";
-  const [searchParams] = useSearchParams();
-  const courseId = searchParams.get("courseId") ?? "";
+  const { courseId = "" } = useParams();
+  const course = useMemo(
+    () => (courseId ? getCourse(courseId) : null),
+    [courseId],
+  );
+  const headline = course ? `Agents for ${course.name}` : "Choose an agent";
 
   const agents = [
     {
@@ -77,9 +78,17 @@ export default function Home() {
         <p className="text-xs font-medium uppercase tracking-[0.3em] text-sky-400">
           AI CADEMY platform
         </p>
-        <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight">
-          Welcome back, {firstName} 👋
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight">
+            {headline}
+          </h1>
+          <Link
+            to="/courses"
+            className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+          >
+            Back to all courses
+          </Link>
+        </div>
         <p className="max-w-2xl text-sm text-slate-300">
           Pick an agent to help you design courses, generate assignments
           and analyze student work. Each workspace is optimized for
