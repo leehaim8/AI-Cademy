@@ -35,7 +35,7 @@ function AppRoutes() {
   return (
     <>
       {!hideNavbar && <Navbar />}
-      <Routes>
+      <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Navigate to="/courses" replace />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
