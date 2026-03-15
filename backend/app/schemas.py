@@ -87,3 +87,22 @@ class SessionRunOut(BaseModel):
     output_data: Any
     status: Literal["success", "error", "running"]
     created_at: str
+
+
+class TopicExtractionRequest(BaseModel):
+    seminar_topic: str = Field(min_length=3, max_length=300)
+    sources: list[str] = Field(default_factory=list)
+    raw_text: Optional[str] = Field(default=None, max_length=200_000)
+    similarity_threshold: float = Field(default=0.68, ge=0.0, le=1.0)
+    include_summary: bool = False
+
+
+class TopicExtractionResponse(BaseModel):
+    run_id: Optional[str] = None
+    all_topics: list[str]
+    clusters: list[list[str]]
+    summary_md: Optional[str] = None
+
+
+class TopicExtractionEditRequest(BaseModel):
+    edited_topics: list[str] = Field(default_factory=list)

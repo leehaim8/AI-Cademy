@@ -14,6 +14,7 @@ course_members_collection: Collection = database["course_members"]
 course_agents_collection: Collection = database["course_agents"]
 sessions_collection: Collection = database["sessions"]
 session_runs_collection: Collection = database["session_runs"]
+topic_extraction_collection: Collection = database["topic_extraction"]
 
 
 def init_indexes() -> None:
@@ -29,3 +30,5 @@ def init_indexes() -> None:
     )
     sessions_collection.create_index([("course_id", ASCENDING), ("agent_key", ASCENDING)])
     session_runs_collection.create_index([("session_id", ASCENDING)])
+    topic_extraction_collection.create_index([("created_at", ASCENDING)])
+    topic_extraction_collection.create_index([("seminar_topic", ASCENDING)])

@@ -12,6 +12,7 @@ from .app.routes.course_members import router as course_members_router
 from .app.routes.course_agents import router as course_agents_router
 from .app.routes.sessions import router as sessions_router
 from .app.routes.session_runs import router as session_runs_router
+from .app.routes.topic_extraction import router as topic_extraction_router
 
 app = FastAPI(title="AI Cademy Auth API")
 
@@ -41,3 +42,4 @@ app.include_router(course_members_router)
 app.include_router(course_agents_router)
 app.include_router(sessions_router)
 app.include_router(session_runs_router)
+app.include_router(topic_extraction_router)
