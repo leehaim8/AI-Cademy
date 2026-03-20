@@ -1,12 +1,17 @@
-import { useMemo, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
 import { useLocation, useParams } from "react-router-dom";
 import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
 import { getCurrentUser } from "../../lib/authStorage";
 import { createRun, createSession } from "../../lib/sessionStore";
+import type { SessionRun } from "../../types/course";
 import aiCademyLogo from "../../assets/ai-cademy-logo.svg";
 
 type TopicSourceMode = "paste" | "manual";
+
+type SyllabusAgentViewProps = {
+  selectedRun?: SessionRun | null;
+};
 
 function normalizeTopics(raw: string): string[] {
   return raw
@@ -15,7 +20,9 @@ function normalizeTopics(raw: string): string[] {
     .filter(Boolean);
 }
 
-export default function SyllabusAgentView() {
+export default function SyllabusAgentView({
+  selectedRun = null,
+}: SyllabusAgentViewProps) {
   const { courseId = "", agentKey = "" } = useParams();
   const currentUser = getCurrentUser();
   const instructorName = currentUser?.full_name ?? "";
@@ -351,6 +358,53 @@ export default function SyllabusAgentView() {
     setSaveMessage("Syllabus output saved to session history.");
   };
 
+  useEffect(() => {
+    if (!selectedRun) {
+      return;
+    }
+
+    const inputData =
+      selectedRun.input_data && typeof selectedRun.input_data === "object"
+        ? (selectedRun.input_data as {
+            topics?: string[];
+            num_weeks?: number;
+            audience?: string;
+            constraints?: string | null;
+          })
+        : null;
+
+    const outputData =
+      selectedRun.output_data && typeof selectedRun.output_data === "object"
+        ? (selectedRun.output_data as { weeks?: SyllabusWeek[] })
+        : null;
+
+    if (inputData?.topics) {
+      setMode("paste");
+      setPastedTopics(inputData.topics.join("\n"));
+      setManualTopics([]);
+    }
+
+    if (typeof inputData?.num_weeks === "number") {
+      setWeeks(inputData.num_weeks);
+    }
+
+    if (typeof inputData?.audience === "string") {
+      setAudience(inputData.audience);
+    }
+
+    if (typeof inputData?.constraints === "string") {
+      setConstraints(inputData.constraints);
+    }
+
+    if (Array.isArray(outputData?.weeks)) {
+      setWeekPlan(outputData.weeks);
+      setHasGenerated(true);
+      setErrorMessage(null);
+      setSaveMessage(null);
+      setSaveState("idle");
+    }
+  }, [selectedRun]);
+
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
       <form
@@ -362,9 +416,6 @@ export default function SyllabusAgentView() {
           <h2 className="text-sm font-semibold text-slate-100">
             Syllabus input
           </h2>
-          <span className="rounded-full border border-sky-500/60 bg-sky-500/10 px-3 py-1 text-[11px] font-medium text-sky-200">
-            Step 1 · Choose topics & weeks
-          </span>
         </div>
 
         <div className="space-y-3">
@@ -586,7 +637,7 @@ export default function SyllabusAgentView() {
           </p>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 max-h-[360px] overflow-y-auto pr-1">
+            <div className="flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">
               {weekPlan.map((week) => (
                 <div
                   key={week.week}
@@ -626,17 +677,21 @@ export default function SyllabusAgentView() {
               ))}
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
-              <span>
-                Save this result to session history or download a PDF for course
-                planning documents.
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="mt-2 flex flex-col gap-4">
+              <div className="max-w-xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Export
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Save this syllabus to session history or export it as a PDF.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <button
                   type="button"
                   onClick={handleSaveOutput}
                   disabled={weekPlan.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-sky-500/60 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-200 hover:border-sky-400 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                  className="inline-flex w-full items-center justify-center rounded-md border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:border-sky-400 hover:bg-sky-500/15 hover:text-sky-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
                 >
                   <span>Save output</span>
                 </button>
@@ -644,7 +699,7 @@ export default function SyllabusAgentView() {
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={weekPlan.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:border-emerald-400 hover:text-emerald-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                  className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
                 >
                   <span>Download PDF</span>
                 </button>

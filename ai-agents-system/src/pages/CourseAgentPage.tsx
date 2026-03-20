@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import TopicAgentView from "./agents/TopicAgentView";
 import SyllabusAgentView from "./agents/SyllabusAgentView";
@@ -7,6 +8,7 @@ import BookletAgentView from "./agents/BookletAgentView";
 import CodeReviewAgentView from "./agents/CodeReviewAgentView";
 import SessionsPanel from "../components/SessionsPanel";
 import { agentCatalog, getCourse } from "../lib/courseStore";
+import type { SessionRun } from "../types/course";
 
 const agentViews = {
   topic: {
@@ -39,6 +41,7 @@ type AgentKey = keyof typeof agentViews;
 
 export default function CourseAgentPage() {
   const { courseId = "", agentKey = "" } = useParams();
+  const [selectedRun, setSelectedRun] = useState<SessionRun | null>(null);
   const normalizedKey = agentKey.replace("_", "-") as AgentKey;
   const agent = agentViews[normalizedKey];
   const course = courseId ? getCourse(courseId) : null;
@@ -63,8 +66,6 @@ export default function CourseAgentPage() {
     );
   }
 
-  const AgentComponent = agent.Component;
-
   return (
     <div
       className="min-h-screen px-6 py-10
@@ -76,21 +77,12 @@ export default function CourseAgentPage() {
           <p className="text-xs font-medium uppercase tracking-[0.3em] text-sky-400">
             Agent workspace
           </p>
-          <div className="flex items-center gap-3">
-            <Link
-              to={courseId ? `/courses/${courseId}/agents` : "/courses"}
-              className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
-            >
-              <span className="text-sm">←</span>
-              <span>Back to dashboard</span>
-            </Link>
-            <Link
-              to="/courses"
-              className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
-            >
-              Back to courses
-            </Link>
-          </div>
+          <Link
+            to={courseId ? `/courses/${courseId}/agents` : "/courses"}
+            className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+          >
+            Back to course
+          </Link>
         </div>
 
         <div className="mb-6">
@@ -108,9 +100,25 @@ export default function CourseAgentPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <SessionsPanel courseId={courseId} agentKey={agentKey} />
+          <SessionsPanel
+            courseId={courseId}
+            agentKey={agentKey}
+            onRunSelect={setSelectedRun}
+          />
           <div>
-            <AgentComponent />
+            {normalizedKey === "syllabus" ? (
+              <SyllabusAgentView selectedRun={selectedRun} />
+            ) : normalizedKey === "topic" ? (
+              <TopicAgentView />
+            ) : normalizedKey === "homework" ? (
+              <HomeworkAgentView />
+            ) : normalizedKey === "evaluation" ? (
+              <EvaluationAgentView />
+            ) : normalizedKey === "booklet" ? (
+              <BookletAgentView />
+            ) : (
+              <CodeReviewAgentView />
+            )}
           </div>
         </div>
       </div>

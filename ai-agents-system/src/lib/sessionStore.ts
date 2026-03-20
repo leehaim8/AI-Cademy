@@ -64,6 +64,20 @@ export function updateSession(sessionId: string, fields: SessionUpdate): Session
   return updated;
 }
 
+export function deleteSession(sessionId: string): void {
+  const sessions = readJson<Session[]>(SESSIONS_KEY, []).filter(
+    (session) => session.id !== sessionId,
+  );
+  writeJson(SESSIONS_KEY, sessions);
+
+  const runs = readJson<SessionRun[]>(RUNS_KEY, []).filter(
+    (run) => run.session_id !== sessionId,
+  );
+  writeJson(RUNS_KEY, runs);
+
+  notifySessionStoreChanged();
+}
+
 export function listRuns(sessionId: string): SessionRun[] {
   const runs = readJson<SessionRun[]>(RUNS_KEY, []);
   return runs.filter((run) => run.session_id === sessionId);

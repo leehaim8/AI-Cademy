@@ -131,7 +131,7 @@ export default function CoursesPage() {
           courses.map((course) => (
             <div
               key={course.id}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-6 shadow-[0_18px_45px_rgba(15,23,42,0.9)]"
+              className="flex min-h-[220px] flex-col rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-6 shadow-[0_18px_45px_rgba(15,23,42,0.9)]"
             >
               <h2 className="text-lg font-semibold text-slate-50">
                 {course.name}
@@ -140,6 +140,7 @@ export default function CoursesPage() {
                 {course.code ? <span>Code: {course.code}</span> : null}
                 {course.term ? <span>Term: {course.term}</span> : null}
               </div>
+              <div className="flex-1" />
               <button
                 type="button"
                 onClick={() => handleOpenCourse(course.id)}

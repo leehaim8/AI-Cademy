@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   extractTopics,
   extractTopicsWithFiles,
@@ -33,6 +33,7 @@ function toReviewTopics(values: string[]): ReviewTopic[] {
 
 export default function TopicAgentView() {
   const navigate = useNavigate();
+  const { courseId = "" } = useParams();
   const [seminarTopic, setSeminarTopic] = useState(
     "Operating Systems in Software Engineering",
   );
@@ -48,6 +49,9 @@ export default function TopicAgentView() {
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
   const [view, setView] = useState<"suggested" | "review">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
+
+  const allTopicsApproved =
+    reviewTopics.length > 0 && reviewTopics.every((topic) => topic.approved);
 
   const fileLabel = useMemo(() => {
     if (uploadedFiles.length === 0) return null;
@@ -171,7 +175,7 @@ export default function TopicAgentView() {
         edited_topics: editedTopics,
       });
       setTopics(editedTopics);
-      setSaveMessage("Edits saved to database.");
+      setSaveMessage("Topics saved.");
       setSaveState("success");
     } catch (error) {
       const message =
@@ -181,6 +185,11 @@ export default function TopicAgentView() {
       setSaveMessage(message);
       setSaveState("error");
     }
+  };
+
+  const resetSaveState = () => {
+    setSaveMessage(null);
+    setSaveState("idle");
   };
 
   return (
@@ -391,6 +400,11 @@ export default function TopicAgentView() {
               <span className="font-medium text-sky-300"> Extract topics</span>.
               Key terms and themes will appear here.
             </p>
+          ) : isAnalyzing ? (
+            <div className="flex items-center gap-2 text-xs text-sky-200">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-200 border-t-transparent" />
+              <span>Analyzing topics...</span>
+            </div>
           ) : errorMessage ? (
             <p className="text-xs text-rose-300">{errorMessage}</p>
           ) : topics.length === 0 ? (
@@ -399,17 +413,19 @@ export default function TopicAgentView() {
               section of your material.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
-              {topics.map((topic) => (
-                <li
-                  key={topic}
-                  className="inline-flex items-center gap-2 rounded-full border border-sky-500/60 bg-slate-950/70 px-3 py-1 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <span>{topic}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-[420px] overflow-y-auto pr-1">
+              <ul className="flex flex-col gap-3">
+                {topics.map((topic) => (
+                  <li
+                    key={topic}
+                    className="flex min-h-[76px] w-full items-start gap-2 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
+                  >
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    <span className="leading-relaxed">{topic}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )
         ) : reviewTopics.length === 0 ? (
           <p className="text-xs text-slate-400">
@@ -417,152 +433,162 @@ export default function TopicAgentView() {
           </p>
         ) : (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3 text-xs text-slate-300">
-              <span>Review, edit, or remove topics before approval.</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
+            <div className="flex items-center justify-start gap-3 text-xs text-slate-300">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={allTopicsApproved}
+                  onChange={(event) => {
                     setReviewTopics((prev) => {
-                      const next = prev.map((item) => ({ ...item, approved: true }));
-                      void persistEditedTopics(next);
-                      return next;
+                      return prev.map((item) => ({
+                        ...item,
+                        approved: event.target.checked,
+                      }));
                     });
+                    resetSaveState();
                   }}
-                  className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-                >
-                  Approve all topics
-                </button>
-              </div>
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-slate-200"
+                />
+                <span>Select all topics</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => void persistEditedTopics(reviewTopics)}
+                className="rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200 hover:border-emerald-400 hover:text-emerald-100"
+              >
+                Save topics
+              </button>
             </div>
             {saveMessage ? (
               <p className={`text-xs ${saveState === "error" ? "text-rose-300" : "text-emerald-300"}`}>
                 {saveMessage}
               </p>
             ) : null}
-            <div className="flex flex-col gap-2">
-              {reviewTopics.map((topic) => (
-                <div
-                  key={topic.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={topic.approved}
-                      onChange={(e) => {
-                        setReviewTopics((prev) => {
-                          const next = prev.map((item) =>
-                            item.id === topic.id
-                              ? { ...item, approved: e.target.checked }
-                              : item,
-                          );
-                          void persistEditedTopics(next);
-                          return next;
-                        });
-                      }}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-slate-200"
-                    />
-                    {topic.isEditing ? (
+            <div className="max-h-[420px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2">
+                {reviewTopics.map((topic) => (
+                  <div
+                    key={topic.id}
+                    className="grid min-h-[88px] w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
                       <input
-                        value={topic.draft}
-                        onChange={(e) =>
-                          setReviewTopics((prev) =>
-                            prev.map((item) =>
+                        type="checkbox"
+                        checked={topic.approved}
+                        onChange={(e) => {
+                          setReviewTopics((prev) => {
+                            return prev.map((item) =>
                               item.id === topic.id
-                                ? { ...item, draft: e.target.value }
+                                ? { ...item, approved: e.target.checked }
                                 : item,
-                            ),
-                          )
-                        }
-                        className="rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                            );
+                          });
+                          resetSaveState();
+                        }}
+                        className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-900 text-slate-200"
                       />
-                    ) : (
-                      <span className="text-xs font-medium text-slate-100 capitalize">
-                        {topic.title}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    {topic.isEditing ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReviewTopics((prev) => {
-                              const next = prev.map((item) =>
-                                item.id === topic.id
-                                  ? {
-                                      ...item,
-                                      title: item.draft.trim() || item.title,
-                                      isEditing: false,
-                                      draft: item.draft.trim() || item.title,
-                                    }
-                                  : item,
-                              );
-                              void persistEditedTopics(next);
-                              return next;
-                            });
-                          }}
-                          className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-200 hover:border-slate-500"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
+                      {topic.isEditing ? (
+                        <input
+                          value={topic.draft}
+                          onChange={(e) => {
                             setReviewTopics((prev) =>
                               prev.map((item) =>
                                 item.id === topic.id
-                                  ? {
-                                      ...item,
-                                      isEditing: false,
+                                  ? { ...item, draft: e.target.value }
+                                  : item,
+                              ),
+                            );
+                            resetSaveState();
+                          }}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                        />
+                      ) : (
+                        <span className="line-clamp-2 leading-relaxed text-sky-100 capitalize">
+                          {topic.title}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 self-center text-xs">
+                      {topic.isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewTopics((prev) =>
+                                prev.map((item) =>
+                                  item.id === topic.id
+                                    ? {
+                                        ...item,
+                                        title: item.draft.trim() || item.title,
+                                        isEditing: false,
+                                        draft: item.draft.trim() || item.title,
+                                      }
+                                    : item,
+                                ),
+                              );
+                              resetSaveState();
+                            }}
+                            className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-200 hover:border-slate-500"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewTopics((prev) =>
+                                prev.map((item) =>
+                                  item.id === topic.id
+                                    ? {
+                                        ...item,
+                                        isEditing: false,
                                       draft: item.title,
                                     }
                                   : item,
-                              ),
-                            )
-                          }
-                          className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300 hover:border-slate-500"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setReviewTopics((prev) =>
-                              prev.map((item) =>
-                                item.id === topic.id
-                                  ? { ...item, isEditing: true }
-                                  : item,
-                              ),
-                            )
-                          }
-                          className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-200 hover:border-slate-500"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReviewTopics((prev) => {
-                              const next = prev.filter((item) => item.id !== topic.id);
-                              void persistEditedTopics(next);
-                              return next;
-                            });
-                          }}
-                          className="rounded-lg border border-rose-500/60 px-2 py-0.5 text-[11px] text-rose-300 hover:border-rose-400"
-                        >
-                          Remove
-                        </button>
-                      </>
-                    )}
+                                ),
+                              );
+                              resetSaveState();
+                            }}
+                            className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300 hover:border-slate-500"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewTopics((prev) =>
+                                prev.map((item) =>
+                                  item.id === topic.id
+                                    ? { ...item, isEditing: true }
+                                    : item,
+                                ),
+                              );
+                              resetSaveState();
+                            }}
+                            className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-200 hover:border-slate-500"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewTopics((prev) =>
+                                prev.filter((item) => item.id !== topic.id),
+                              );
+                              resetSaveState();
+                            }}
+                            className="rounded-lg border border-rose-500/60 px-2 py-0.5 text-[11px] text-rose-300 hover:border-rose-400"
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -572,7 +598,7 @@ export default function TopicAgentView() {
             <button
               type="button"
               onClick={() =>
-                navigate("/agent/syllabus", {
+                navigate(courseId ? `/courses/${courseId}/agents/syllabus` : "/agent/syllabus", {
                   state: { fromTopicAgent: true, topics },
                 })
               }

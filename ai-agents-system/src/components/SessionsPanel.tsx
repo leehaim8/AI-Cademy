@@ -4,6 +4,7 @@ import {
   SESSION_STORE_CHANGED_EVENT,
   createRun,
   createSession,
+  deleteSession,
   listRuns,
   listSessions,
 } from "../lib/sessionStore";
@@ -11,9 +12,14 @@ import {
 type SessionsPanelProps = {
   courseId: string;
   agentKey: string;
+  onRunSelect?: (run: SessionRun | null) => void;
 };
 
-export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps) {
+export default function SessionsPanel({
+  courseId,
+  agentKey,
+  onRunSelect,
+}: SessionsPanelProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
@@ -58,10 +64,18 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
     return listRuns(effectiveSelectedSessionId);
   }, [effectiveSelectedSessionId, storeVersion]);
 
+  useEffect(() => {
+    onRunSelect?.(runs[0] ?? null);
+  }, [onRunSelect, runs]);
+
+  function handleSelectSession(sessionId: string) {
+    setSelectedSessionId(sessionId);
+    onRunSelect?.(listRuns(sessionId)[0] ?? null);
+  }
+
   function handleCreateSession() {
     if (!title.trim()) return;
     const session = createSession(courseId, agentKey, title, notes);
-    setSessions((prev) => [session, ...prev]);
     setTitle("");
     setNotes("");
     setSelectedSessionId(session.id);
@@ -75,7 +89,24 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
       { note: "Mock output" },
       "success",
     );
-    setRuns((prev) => [run, ...prev]);
+    onRunSelect?.(run);
+  }
+
+  function handleDeleteSession(sessionId: string) {
+    const shouldDelete = window.confirm(
+      "Are you sure you want to delete this session?",
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    if (effectiveSelectedSessionId === sessionId) {
+      onRunSelect?.(null);
+    }
+    deleteSession(sessionId);
+    if (selectedSessionId === sessionId) {
+      setSelectedSessionId(null);
+    }
   }
 
   return (
@@ -92,21 +123,51 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
             </p>
           ) : (
             sessions.map((session) => (
-              <button
+              <div
                 key={session.id}
-                type="button"
-                onClick={() => setSelectedSessionId(session.id)}
                 className={`rounded-xl border px-3 py-2 text-left transition ${
                   effectiveSelectedSessionId === session.id
                     ? "border-sky-400/60 bg-sky-500/10 text-slate-100"
                     : "border-slate-800/70 bg-slate-950/40 text-slate-300 hover:border-slate-600"
                 }`}
               >
-                <div className="text-sm font-semibold">{session.title}</div>
-                <div className="text-[11px] text-slate-400">
-                  {new Date(session.created_at).toLocaleDateString()}
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSession(session.id)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="text-sm font-semibold">{session.title}</div>
+                    <div className="text-[11px] text-slate-400">
+                      {new Date(session.created_at).toLocaleDateString()}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSession(session.id)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 text-slate-400 hover:border-rose-400 hover:text-rose-300"
+                    aria-label={`Delete session ${session.title}`}
+                    title="Delete session"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -162,9 +223,11 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
             </p>
           ) : (
             runs.map((run) => (
-              <div
+              <button
                 key={run.id}
-                className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2"
+                type="button"
+                onClick={() => onRunSelect?.(run)}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-left hover:border-slate-600"
               >
                 <div className="flex flex-col gap-1">
                   <span className="text-[11px] text-slate-500">
@@ -189,7 +252,7 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
                 >
                   {run.status}
                 </span>
-              </div>
+              </button>
             ))
           )}
         </div>
