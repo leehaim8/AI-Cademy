@@ -1,8 +1,9 @@
 import { useMemo, useState, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
 import { getCurrentUser } from "../../lib/authStorage";
+import { createRun, createSession } from "../../lib/sessionStore";
 import aiCademyLogo from "../../assets/ai-cademy-logo.svg";
 
 type TopicSourceMode = "paste" | "manual";
@@ -15,6 +16,7 @@ function normalizeTopics(raw: string): string[] {
 }
 
 export default function SyllabusAgentView() {
+  const { courseId = "", agentKey = "" } = useParams();
   const currentUser = getCurrentUser();
   const instructorName = currentUser?.full_name ?? "";
   const location = useLocation() as {
@@ -47,6 +49,8 @@ export default function SyllabusAgentView() {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [weekPlan, setWeekPlan] = useState<SyllabusWeek[]>([]);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
 
   const parsedPastedTopics = useMemo(
     () => normalizeTopics(pastedTopics),
@@ -76,6 +80,8 @@ export default function SyllabusAgentView() {
     setHasGenerated(true);
     setIsGenerating(true);
     setErrorMessage(null);
+    setSaveMessage(null);
+    setSaveState("idle");
 
     try {
       const result = await generateSyllabus({
@@ -295,6 +301,54 @@ export default function SyllabusAgentView() {
     };
     img.onerror = () => buildDocument();
     img.src = aiCademyLogo;
+  };
+
+  const handleSaveOutput = () => {
+    if (!courseId || !agentKey) {
+      setSaveState("error");
+      setSaveMessage("Course context is missing, so the syllabus could not be saved.");
+      return;
+    }
+
+    if (weekPlan.length === 0) {
+      setSaveState("error");
+      setSaveMessage("Generate a syllabus before saving it.");
+      return;
+    }
+
+    const timestamp = new Date();
+    const sessionTitle = `Syllabus ${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+    const notesParts = [
+      `Audience: ${audience.trim() || "University students"}`,
+      constraints.trim() ? `Constraints: ${constraints.trim()}` : "",
+    ].filter(Boolean);
+
+    const session = createSession(
+      courseId,
+      agentKey,
+      sessionTitle,
+      notesParts.join("\n"),
+    );
+
+    createRun(
+      session.id,
+      {
+        topics,
+        num_weeks: weeks,
+        audience: audience.trim() || "University students",
+        constraints: constraints.trim() || null,
+      },
+      {
+        weeks: weekPlan,
+      },
+      "success",
+    );
+
+    setSaveState("success");
+    setSaveMessage("Syllabus output saved to session history.");
   };
 
   return (
@@ -574,18 +628,39 @@ export default function SyllabusAgentView() {
 
             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
               <span>
-                Download a PDF syllabus with instructor details for your course
+                Save this result to session history or download a PDF for course
                 planning documents.
               </span>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={weekPlan.length === 0}
-                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:border-emerald-400 hover:text-emerald-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
-              >
-                <span>Download PDF</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveOutput}
+                  disabled={weekPlan.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-sky-500/60 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-200 hover:border-sky-400 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                >
+                  <span>Save output</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={weekPlan.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:border-emerald-400 hover:text-emerald-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                >
+                  <span>Download PDF</span>
+                </button>
+              </div>
             </div>
+            {saveMessage ? (
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs ${
+                  saveState === "success"
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                }`}
+              >
+                {saveMessage}
+              </div>
+            ) : null}
           </>
         )}
       </div>

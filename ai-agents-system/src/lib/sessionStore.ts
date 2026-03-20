@@ -2,6 +2,7 @@ import type { Session, SessionRun } from "../types/course";
 
 const SESSIONS_KEY = "ai-cademy-sessions";
 const RUNS_KEY = "ai-cademy-session-runs";
+export const SESSION_STORE_CHANGED_EVENT = "ai-cademy-session-store-changed";
 
 type SessionUpdate = Partial<Pick<Session, "title" | "notes">>;
 
@@ -17,6 +18,10 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function notifySessionStoreChanged(): void {
+  window.dispatchEvent(new Event(SESSION_STORE_CHANGED_EVENT));
 }
 
 export function listSessions(courseId: string, agentKey: string): Session[] {
@@ -44,6 +49,7 @@ export function createSession(
   };
   sessions.unshift(session);
   writeJson(SESSIONS_KEY, sessions);
+  notifySessionStoreChanged();
   return session;
 }
 
@@ -54,6 +60,7 @@ export function updateSession(sessionId: string, fields: SessionUpdate): Session
   const updated = { ...sessions[index], ...fields };
   sessions[index] = updated;
   writeJson(SESSIONS_KEY, sessions);
+  notifySessionStoreChanged();
   return updated;
 }
 
@@ -79,5 +86,6 @@ export function createRun(
   };
   runs.unshift(run);
   writeJson(RUNS_KEY, runs);
+  notifySessionStoreChanged();
   return run;
 }

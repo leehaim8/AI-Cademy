@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session, SessionRun } from "../types/course";
 import {
+  SESSION_STORE_CHANGED_EVENT,
   createRun,
   createSession,
   listRuns,
@@ -13,46 +14,49 @@ type SessionsPanelProps = {
 };
 
 export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
-  const [runs, setRuns] = useState<SessionRun[]>([]);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [loadingRuns, setLoadingRuns] = useState(false);
+  const [storeVersion, setStoreVersion] = useState(0);
 
   useEffect(() => {
+    const handleStoreChanged = () => {
+      setStoreVersion((prev) => prev + 1);
+    };
+
+    window.addEventListener(SESSION_STORE_CHANGED_EVENT, handleStoreChanged);
+    return () => {
+      window.removeEventListener(SESSION_STORE_CHANGED_EVENT, handleStoreChanged);
+    };
+  }, []);
+
+  const sessions = useMemo<Session[]>(() => {
+    void storeVersion;
     if (!courseId || !agentKey) {
-      setSessions([]);
-      setSelectedSessionId(null);
-      return;
+      return [];
     }
-    const data = listSessions(courseId, agentKey);
-    setSessions(data);
-  }, [courseId, agentKey]);
+    return listSessions(courseId, agentKey);
+  }, [courseId, agentKey, storeVersion]);
 
-  useEffect(() => {
-    if (!selectedSessionId) {
-      setRuns([]);
-      return;
-    }
-    setLoadingRuns(true);
-    const data = listRuns(selectedSessionId);
-    setRuns(data);
-    setLoadingRuns(false);
-  }, [selectedSessionId]);
-
-  useEffect(() => {
-    if (!selectedSessionId && sessions.length > 0) {
-      setSelectedSessionId(sessions[0].id);
-    }
-  }, [sessions, selectedSessionId]);
+  const effectiveSelectedSessionId =
+    selectedSessionId && sessions.some((session) => session.id === selectedSessionId)
+      ? selectedSessionId
+      : sessions[0]?.id ?? null;
 
   const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
-    [sessions, selectedSessionId],
+    () => sessions.find((session) => session.id === effectiveSelectedSessionId) ?? null,
+    [sessions, effectiveSelectedSessionId],
   );
+
+  const runs = useMemo<SessionRun[]>(() => {
+    void storeVersion;
+    if (!effectiveSelectedSessionId) {
+      return [];
+    }
+    return listRuns(effectiveSelectedSessionId);
+  }, [effectiveSelectedSessionId, storeVersion]);
 
   function handleCreateSession() {
     if (!title.trim()) return;
@@ -93,7 +97,7 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
                 type="button"
                 onClick={() => setSelectedSessionId(session.id)}
                 className={`rounded-xl border px-3 py-2 text-left transition ${
-                  selectedSessionId === session.id
+                  effectiveSelectedSessionId === session.id
                     ? "border-sky-400/60 bg-sky-500/10 text-slate-100"
                     : "border-slate-800/70 bg-slate-950/40 text-slate-300 hover:border-slate-600"
                 }`}
@@ -152,9 +156,7 @@ export default function SessionsPanel({ courseId, agentKey }: SessionsPanelProps
           </button>
         </div>
         <div className="mt-3 flex flex-col gap-2 text-xs text-slate-300">
-          {loadingRuns ? (
-            <div className="h-10 animate-pulse rounded bg-slate-800/70" />
-          ) : runs.length === 0 ? (
+          {runs.length === 0 ? (
             <p className="text-xs text-slate-400">
               No runs yet. Click Run to create one.
             </p>
