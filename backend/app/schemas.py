@@ -106,3 +106,20 @@ class TopicExtractionResponse(BaseModel):
 
 class TopicExtractionEditRequest(BaseModel):
     edited_topics: list[str] = Field(default_factory=list)
+
+
+class SyllabusGenerationRequest(BaseModel):
+    topics: list[str] = Field(default_factory=list, min_length=1)
+    num_weeks: int = Field(default=12, ge=1, le=52)
+    audience: str = Field(default="University students", min_length=2, max_length=200)
+    constraints: Optional[str] = Field(default=None, max_length=2000)
+
+
+class SyllabusWeekOut(BaseModel):
+    week: int
+    central_topic: str
+    topics: list[str]
+
+
+class SyllabusGenerationResponse(BaseModel):
+    weeks: list[SyllabusWeekOut]

@@ -1,38 +1,17 @@
 import { useMemo, useState, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
 import { useLocation } from "react-router-dom";
+import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
 import { getCurrentUser } from "../../lib/authStorage";
 import aiCademyLogo from "../../assets/ai-cademy-logo.svg";
 
 type TopicSourceMode = "paste" | "manual";
 
-type WeekPlan = {
-  week: number;
-  topics: string[];
-};
-
-function buildWeekPlan(topics: string[], weeks: number): WeekPlan[] {
-  const cleanTopics = topics.map((t) => t.trim()).filter(Boolean);
-  const safeWeeks = Math.max(1, Math.min(52, weeks || 1));
-
-  if (cleanTopics.length === 0) {
-    return Array.from({ length: safeWeeks }, (_, i) => ({
-      week: i + 1,
-      topics: [],
-    }));
-  }
-
-  const plan: WeekPlan[] = Array.from({ length: safeWeeks }, (_, i) => ({
-    week: i + 1,
-    topics: [],
-  }));
-
-  cleanTopics.forEach((topic, index) => {
-    const weekIndex = index % safeWeeks;
-    plan[weekIndex].topics.push(topic);
-  });
-
-  return plan;
+function normalizeTopics(raw: string): string[] {
+  return raw
+    .split(/\n|,|;/)
+    .map((topic) => topic.trim())
+    .filter(Boolean);
 }
 
 export default function SyllabusAgentView() {
@@ -41,13 +20,14 @@ export default function SyllabusAgentView() {
   const location = useLocation() as {
     state?: { fromTopicAgent?: boolean; topics?: string[] };
   };
+
   const initialFromTopic = Boolean(
     location.state?.fromTopicAgent &&
       Array.isArray(location.state.topics) &&
       location.state.topics.length > 0,
   );
   const initialImportedTopics = initialFromTopic
-    ? (location.state!.topics as string[]).filter(Boolean)
+    ? (location.state?.topics ?? []).filter(Boolean)
     : [];
 
   const [mode, setMode] = useState<TopicSourceMode>(
@@ -59,27 +39,24 @@ export default function SyllabusAgentView() {
   const [manualTopic, setManualTopic] = useState("");
   const [manualTopics, setManualTopics] = useState<string[]>([]);
   const [weeks, setWeeks] = useState(12);
+  const [audience, setAudience] = useState("University students");
+  const [constraints, setConstraints] = useState(
+    "Prefer foundations before advanced topics.",
+  );
+  const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [weekPlan, setWeekPlan] = useState<SyllabusWeek[]>([]);
 
   const parsedPastedTopics = useMemo(
-    () =>
-      pastedTopics
-        .split(/\n|,|;/)
-        .map((t) => t.trim())
-        .filter(Boolean),
+    () => normalizeTopics(pastedTopics),
     [pastedTopics],
   );
 
-  const topics = useMemo(() => {
-    return [...parsedPastedTopics, ...manualTopics];
-  }, [parsedPastedTopics, manualTopics]);
-
-  const weekPlan = useMemo(() => buildWeekPlan(topics, weeks), [topics, weeks]);
-
-  const handleGenerate = (e: SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setHasGenerated(true);
-  };
+  const topics = useMemo(
+    () => [...parsedPastedTopics, ...manualTopics],
+    [parsedPastedTopics, manualTopics],
+  );
 
   const handleAddManualTopic = () => {
     const value = manualTopic.trim();
@@ -92,7 +69,37 @@ export default function SyllabusAgentView() {
     setManualTopics((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleGenerate = async (e: SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (topics.length === 0) return;
+
+    setHasGenerated(true);
+    setIsGenerating(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await generateSyllabus({
+        topics,
+        num_weeks: weeks,
+        audience: audience.trim() || "University students",
+        constraints: constraints.trim() || undefined,
+      });
+      setWeekPlan(result.weeks ?? []);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not generate the syllabus right now.";
+      setWeekPlan([]);
+      setErrorMessage(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleDownloadPdf = () => {
+    if (weekPlan.length === 0) return;
+
     const doc = new jsPDF({ unit: "pt", format: "a4" });
 
     const buildDocument = (logoDataUrl?: string) => {
@@ -106,14 +113,13 @@ export default function SyllabusAgentView() {
 
       let y = marginTop;
 
-      // Optional logo centered at top
       if (logoDataUrl) {
         try {
           const logoWidth = 80;
           const logoHeight = 80;
           const logoX = centerX - logoWidth / 2;
           doc.addImage(logoDataUrl, "PNG", logoX, y, logoWidth, logoHeight);
-          y += logoHeight + 26; // extra space between logo and text
+          y += logoHeight + 26;
         } catch {
           doc.setFont("helvetica", "bold");
           doc.setFontSize(22);
@@ -129,35 +135,43 @@ export default function SyllabusAgentView() {
         y += lineHeight * 2;
       }
 
-      // Centered title text under logo
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
       doc.setTextColor(15, 23, 42);
       doc.text("AI CADEMY", centerX, y, { align: "center" });
       y += lineHeight * 1.2;
 
-      // Centered metadata
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(71, 85, 105); // metadata
-      const instructorLabel = instructorName
-        ? `Instructor: ${instructorName}`
-        : "Instructor: __________________";
-      doc.text(instructorLabel, centerX, y, { align: "center" });
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        instructorName
+          ? `Instructor: ${instructorName}`
+          : "Instructor: __________________",
+        centerX,
+        y,
+        { align: "center" },
+      );
 
       const today = new Date();
-      const dateLabel = today.toLocaleDateString();
-      doc.text(`Generated: ${dateLabel}`, centerX, y + lineHeight, {
+      doc.text(`Generated: ${today.toLocaleDateString()}`, centerX, y + lineHeight, {
         align: "center",
       });
 
       y += lineHeight * 3;
 
-      // Table-style course structure header
       const tableTop = y;
       const tableHeaderHeight = 24;
-      doc.setFillColor(15, 23, 42); // slate-900 instead of red
-      doc.setTextColor(248, 250, 252); // slate-50
+      const columnHeaderHeight = 20;
+      const colWeekWidth = 60;
+      const colThemeWidth = 180;
+      const colTopicWidth = Math.max(
+        120,
+        contentWidth - colWeekWidth - colThemeWidth,
+      );
+
+      doc.setFillColor(15, 23, 42);
+      doc.setTextColor(248, 250, 252);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.rect(marginLeft, tableTop, contentWidth, tableHeaderHeight, "F");
@@ -167,84 +181,92 @@ export default function SyllabusAgentView() {
 
       y = tableTop + tableHeaderHeight;
 
-      // Column headers
-      const columnHeaderHeight = 20;
-      const colWeekWidth = 60;
-      const colTopicWidth = 260;
-      const colDetailsWidth = Math.max(120, contentWidth - colWeekWidth - colTopicWidth);
+      const drawColumnHeaders = (rowY: number) => {
+        doc.setFillColor(241, 245, 249);
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(11);
+        doc.rect(marginLeft, rowY, contentWidth, columnHeaderHeight, "F");
+        doc.text("Week", marginLeft + 6, rowY + 13);
+        doc.text("Theme", marginLeft + colWeekWidth + 6, rowY + 13);
+        doc.text(
+          "Topics",
+          marginLeft + colWeekWidth + colThemeWidth + 6,
+          rowY + 13,
+        );
+      };
 
-      doc.setFillColor(241, 245, 249); // slate-100
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(11);
-      doc.rect(marginLeft, y, contentWidth, columnHeaderHeight, "F");
-      doc.text("Week", marginLeft + 6, y + 13);
-      doc.text("Lesson topic", marginLeft + colWeekWidth + 6, y + 13);
-      doc.text("Details / notes", marginLeft + colWeekWidth + colTopicWidth + 6, y + 13);
-
+      drawColumnHeaders(y);
       y += columnHeaderHeight;
 
-      // Flatten week plan into rows
-      const rows: { week: number; topic: string }[] = [];
-      weekPlan.forEach((week) => {
+      const rows = weekPlan.flatMap((week) => {
         if (week.topics.length === 0) {
-          rows.push({ week: week.week, topic: "(no topics assigned yet)" });
-        } else {
-          week.topics.forEach((topic) => {
-            rows.push({ week: week.week, topic });
-          });
+          return [
+            {
+              week: week.week,
+              centralTopic: week.central_topic,
+              topic: "(no topics assigned yet)",
+            },
+          ];
         }
+
+        return week.topics.map((topic, index) => ({
+          week: index === 0 ? week.week : "",
+          centralTopic: index === 0 ? week.central_topic : "",
+          topic,
+        }));
       });
 
-      const rowHeight = 20;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-
-      const drawTableHeaderOnNewPage = () => {
+      const drawHeaderOnNewPage = () => {
         const headerTop = marginTop;
         doc.setFillColor(15, 23, 42);
         doc.setTextColor(248, 250, 252);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         doc.rect(marginLeft, headerTop, contentWidth, tableHeaderHeight, "F");
-        doc.text("Course Structure (cont.)", marginLeft + contentWidth / 2, headerTop + 16, {
-          align: "center",
-        });
+        doc.text(
+          "Course Structure (cont.)",
+          marginLeft + contentWidth / 2,
+          headerTop + 16,
+          { align: "center" },
+        );
 
         const headerY = headerTop + tableHeaderHeight;
-        doc.setFillColor(241, 245, 249);
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(11);
-        doc.rect(marginLeft, headerY, contentWidth, columnHeaderHeight, "F");
-        doc.text("Week", marginLeft + 6, headerY + 13);
-        doc.text("Lesson topic", marginLeft + colWeekWidth + 6, headerY + 13);
-        doc.text("Details / notes", marginLeft + colWeekWidth + colTopicWidth + 6, headerY + 13);
-
+        drawColumnHeaders(headerY);
         return headerY + columnHeaderHeight;
       };
 
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+
       rows.forEach((row) => {
+        const themeLines = doc.splitTextToSize(row.centralTopic || " ", colThemeWidth - 12);
+        const topicLines = doc.splitTextToSize(row.topic, colTopicWidth - 12);
+        const rowLineCount = Math.max(1, themeLines.length, topicLines.length);
+        const rowHeight = Math.max(20, rowLineCount * 13 + 8);
+
         if (y > pageHeight - marginTop - rowHeight) {
           doc.addPage();
-          y = drawTableHeaderOnNewPage();
+          y = drawHeaderOnNewPage();
         }
 
-        // Cell borders
-        doc.setDrawColor(148, 163, 184); // slate-400
+        doc.setDrawColor(148, 163, 184);
         doc.rect(marginLeft, y, colWeekWidth, rowHeight);
-        doc.rect(marginLeft + colWeekWidth, y, colTopicWidth, rowHeight);
+        doc.rect(marginLeft + colWeekWidth, y, colThemeWidth, rowHeight);
         doc.rect(
-          marginLeft + colWeekWidth + colTopicWidth,
+          marginLeft + colWeekWidth + colThemeWidth,
           y,
-          colDetailsWidth,
+          colTopicWidth,
           rowHeight,
         );
 
-        // Text
         doc.setTextColor(15, 23, 42);
         doc.text(String(row.week), marginLeft + 6, y + 13);
-        doc.text(row.topic, marginLeft + colWeekWidth + 6, y + 13, {
-          maxWidth: colTopicWidth - 12,
-        });
+        doc.text(themeLines, marginLeft + colWeekWidth + 6, y + 13);
+        doc.text(
+          topicLines,
+          marginLeft + colWeekWidth + colThemeWidth + 6,
+          y + 13,
+        );
 
         y += rowHeight;
       });
@@ -252,7 +274,6 @@ export default function SyllabusAgentView() {
       doc.save("ai-cademy-syllabus.pdf");
     };
 
-    // Load SVG logo, rasterize it to PNG via canvas, then build the PDF
     const img = new Image();
     img.onload = () => {
       try {
@@ -264,8 +285,7 @@ export default function SyllabusAgentView() {
         if (ctx) {
           ctx.clearRect(0, 0, size, size);
           ctx.drawImage(img, 0, 0, size, size);
-          const dataUrl = canvas.toDataURL("image/png");
-          buildDocument(dataUrl);
+          buildDocument(canvas.toDataURL("image/png"));
         } else {
           buildDocument();
         }
@@ -279,7 +299,6 @@ export default function SyllabusAgentView() {
 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
-      {/* Input side */}
       <form
         onSubmit={handleGenerate}
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
@@ -365,27 +384,27 @@ export default function SyllabusAgentView() {
                         +
                       </button>
                     </div>
-                    {manualTopics.length > 0 && (
+                    {manualTopics.length > 0 ? (
                       <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-200">
-                        {manualTopics.map((t, idx) => (
+                        {manualTopics.map((topic, index) => (
                           <li
-                            key={`${t}-${idx}`}
+                            key={`${topic}-${index}`}
                             className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-0.5"
                           >
-                            <span className="max-w-[10rem] truncate" title={t}>
-                              {t}
+                            <span className="max-w-[10rem] truncate" title={topic}>
+                              {topic}
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleRemoveManualTopic(idx)}
+                              onClick={() => handleRemoveManualTopic(index)}
                               className="text-[10px] text-slate-500 hover:text-red-300"
                             >
-                              ×
+                              x
                             </button>
                           </li>
                         ))}
                       </ul>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </>
@@ -393,7 +412,9 @@ export default function SyllabusAgentView() {
               <div className="space-y-2">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
                   <span>Topics</span>
-                  <span className="text-slate-500">Add the main ideas you want to cover.</span>
+                  <span className="text-slate-500">
+                    Add the main ideas you want to cover.
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <input
@@ -411,29 +432,53 @@ export default function SyllabusAgentView() {
                     +
                   </button>
                 </div>
-                {manualTopics.length > 0 && (
+                {manualTopics.length > 0 ? (
                   <ul className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-200">
-                    {manualTopics.map((t, idx) => (
+                    {manualTopics.map((topic, index) => (
                       <li
-                        key={`${t}-${idx}`}
+                        key={`${topic}-${index}`}
                         className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-0.5"
                       >
-                        <span className="max-w-[10rem] truncate" title={t}>
-                          {t}
+                        <span className="max-w-[10rem] truncate" title={topic}>
+                          {topic}
                         </span>
                         <button
                           type="button"
-                          onClick={() => handleRemoveManualTopic(idx)}
+                          onClick={() => handleRemoveManualTopic(index)}
                           className="text-[10px] text-slate-500 hover:text-red-300"
                         >
-                          ×
+                          x
                         </button>
                       </li>
                     ))}
                   </ul>
-                )}
+                ) : null}
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-200">
+              Audience
+            </label>
+            <input
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              placeholder="For example: second-year computer science students"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-200">
+              Teaching constraints
+            </label>
+            <textarea
+              value={constraints}
+              onChange={(e) => setConstraints(e.target.value)}
+              placeholder="Optional guidance for pacing, foundations, labs, assessment flow, and course priorities."
+              className="min-h-[90px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+            />
           </div>
 
           <div className="flex flex-col gap-1 text-[11px] text-slate-300">
@@ -456,29 +501,34 @@ export default function SyllabusAgentView() {
           <span>{topics.length} topics</span>
           <button
             type="submit"
-            disabled={topics.length === 0}
+            disabled={topics.length === 0 || isGenerating}
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-[0_10px_35px_rgba(16,185,129,0.5)] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none"
           >
-            <span>Generate syllabus layout</span>
+            <span>{isGenerating ? "Generating..." : "Generate syllabus layout"}</span>
           </button>
         </div>
       </form>
 
-      {/* Result side */}
       <div
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
         backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex flex-col gap-4"
       >
-        <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-          <span className="text-base">📚</span>
+        <h2 className="text-sm font-semibold text-slate-100">
           Week-by-week syllabus
         </h2>
 
         {!hasGenerated ? (
           <p className="text-xs text-slate-400">
-            Choose topics and number of weeks, then generate a syllabus layout. The
-            ordered weeks and topics will appear here and can be downloaded as a
-            text file.
+            Choose topics, audience, and number of weeks, then generate a syllabus.
+            The backend agent will return a structured weekly teaching plan here.
+          </p>
+        ) : errorMessage ? (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {errorMessage}
+          </div>
+        ) : isGenerating ? (
+          <p className="text-xs text-slate-400">
+            Building prerequisite flow and consolidating weekly themes...
           </p>
         ) : (
           <>
@@ -486,7 +536,7 @@ export default function SyllabusAgentView() {
               {weekPlan.map((week) => (
                 <div
                   key={week.week}
-                  className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 flex flex-col gap-1.5"
+                  className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 flex flex-col gap-2"
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-100">
@@ -496,16 +546,24 @@ export default function SyllabusAgentView() {
                       {week.topics.length} topics
                     </span>
                   </div>
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-sky-300">
+                      Central theme
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-100">
+                      {week.central_topic}
+                    </p>
+                  </div>
                   {week.topics.length === 0 ? (
                     <p className="text-[11px] text-slate-500">
                       No topics assigned.
                     </p>
                   ) : (
                     <ul className="mt-1 space-y-1 text-[11px] text-slate-200">
-                      {week.topics.map((t, idx) => (
-                        <li key={`${week.week}-${idx}`} className="flex items-start gap-2">
+                      {week.topics.map((topic, index) => (
+                        <li key={`${week.week}-${index}`} className="flex items-start gap-2">
                           <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-sky-400" />
-                          <span>{t}</span>
+                          <span>{topic}</span>
                         </li>
                       ))}
                     </ul>
@@ -522,7 +580,8 @@ export default function SyllabusAgentView() {
               <button
                 type="button"
                 onClick={handleDownloadPdf}
-                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:border-emerald-400 hover:text-emerald-100"
+                disabled={weekPlan.length === 0}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:border-emerald-400 hover:text-emerald-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
               >
                 <span>Download PDF</span>
               </button>

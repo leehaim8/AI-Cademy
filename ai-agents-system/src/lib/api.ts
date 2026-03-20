@@ -33,6 +33,23 @@ export type TopicExtractionEditPayload = {
   edited_topics: string[];
 };
 
+export type SyllabusGenerationPayload = {
+  topics: string[];
+  num_weeks: number;
+  audience: string;
+  constraints?: string;
+};
+
+export type SyllabusWeek = {
+  week: number;
+  central_topic: string;
+  topics: string[];
+};
+
+export type SyllabusGenerationResponse = {
+  weeks: SyllabusWeek[];
+};
+
 export type TopicExtractionUploadPayload = {
   seminar_topic: string;
   files: File[];
@@ -176,4 +193,20 @@ export async function saveEditedTopics(
   }
 
   return (await res.json()) as { run_id: string; edited_topics: string[] };
+}
+
+export async function generateSyllabus(
+  payload: SyllabusGenerationPayload
+): Promise<SyllabusGenerationResponse> {
+  const res = await fetch(`${API_BASE_URL}/syllabus/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as SyllabusGenerationResponse;
 }

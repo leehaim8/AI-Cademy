@@ -14,7 +14,12 @@ from docx import Document
 from openai import OpenAI
 from PyPDF2 import PdfReader
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client() -> OpenAI:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not configured for topic extraction.")
+    return OpenAI(api_key=api_key)
 
 
 def extract_text_from_uploaded_file(filename: str, content: bytes) -> str:
@@ -88,7 +93,7 @@ def chunk_text(text: str, max_chars: int = 8000) -> list[str]:
 
 
 def call_llm(prompt: str, temperature: float = 0.2) -> str:
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
@@ -171,7 +176,7 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
 
-    response = client.embeddings.create(model="text-embedding-3-small", input=texts)
+    response = get_openai_client().embeddings.create(model="text-embedding-3-small", input=texts)
     return [item.embedding for item in response.data]
 
 
