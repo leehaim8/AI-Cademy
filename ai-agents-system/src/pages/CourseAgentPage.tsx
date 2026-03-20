@@ -79,9 +79,10 @@ export default function CourseAgentPage() {
           </p>
           <Link
             to={courseId ? `/courses/${courseId}/agents` : "/courses"}
-            className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-sky-300"
           >
-            Back to course
+            <span className="text-sm">←</span>
+            <span>Back to course</span>
           </Link>
         </div>
 
@@ -107,7 +108,10 @@ export default function CourseAgentPage() {
           />
           <div>
             {normalizedKey === "syllabus" ? (
-              <SyllabusAgentView selectedRun={selectedRun} />
+              <SyllabusAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => setSelectedRun(null)}
+              />
             ) : normalizedKey === "topic" ? (
               <TopicAgentView />
             ) : normalizedKey === "homework" ? (

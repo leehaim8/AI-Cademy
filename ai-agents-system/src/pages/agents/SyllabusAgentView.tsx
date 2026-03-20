@@ -11,6 +11,7 @@ type TopicSourceMode = "paste" | "manual";
 
 type SyllabusAgentViewProps = {
   selectedRun?: SessionRun | null;
+  onClearSelectedRun?: () => void;
 };
 
 function normalizeTopics(raw: string): string[] {
@@ -22,6 +23,7 @@ function normalizeTopics(raw: string): string[] {
 
 export default function SyllabusAgentView({
   selectedRun = null,
+  onClearSelectedRun,
 }: SyllabusAgentViewProps) {
   const { courseId = "", agentKey = "" } = useParams();
   const currentUser = getCurrentUser();
@@ -354,8 +356,12 @@ export default function SyllabusAgentView({
       "success",
     );
 
-    setSaveState("success");
-    setSaveMessage("Syllabus output saved to session history.");
+    setSaveState("idle");
+    setSaveMessage(null);
+    setWeekPlan([]);
+    setHasGenerated(false);
+    setErrorMessage(null);
+    onClearSelectedRun?.();
   };
 
   useEffect(() => {

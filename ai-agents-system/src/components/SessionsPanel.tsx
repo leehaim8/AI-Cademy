@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session, SessionRun } from "../types/course";
 import {
   SESSION_STORE_CHANGED_EVENT,
-  createRun,
   createSession,
   deleteSession,
   listRuns,
@@ -49,7 +48,7 @@ export default function SessionsPanel({
   const effectiveSelectedSessionId =
     selectedSessionId && sessions.some((session) => session.id === selectedSessionId)
       ? selectedSessionId
-      : sessions[0]?.id ?? null;
+      : null;
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === effectiveSelectedSessionId) ?? null,
@@ -64,10 +63,6 @@ export default function SessionsPanel({
     return listRuns(effectiveSelectedSessionId);
   }, [effectiveSelectedSessionId, storeVersion]);
 
-  useEffect(() => {
-    onRunSelect?.(runs[0] ?? null);
-  }, [onRunSelect, runs]);
-
   function handleSelectSession(sessionId: string) {
     setSelectedSessionId(sessionId);
     onRunSelect?.(listRuns(sessionId)[0] ?? null);
@@ -75,21 +70,10 @@ export default function SessionsPanel({
 
   function handleCreateSession() {
     if (!title.trim()) return;
-    const session = createSession(courseId, agentKey, title, notes);
+    createSession(courseId, agentKey, title, notes);
     setTitle("");
     setNotes("");
-    setSelectedSessionId(session.id);
-  }
-
-  function handleRunMock() {
-    if (!selectedSession) return;
-    const run = createRun(
-      selectedSession.id,
-      { note: "Mock input" },
-      { note: "Mock output" },
-      "success",
-    );
-    onRunSelect?.(run);
+    setSelectedSessionId(null);
   }
 
   function handleDeleteSession(sessionId: string) {
@@ -200,21 +184,11 @@ export default function SessionsPanel({
       </div>
 
       <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-100">Run history</h3>
-            <p className="text-xs text-slate-400">
-              {selectedSession ? selectedSession.title : "Select a session"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleRunMock}
-            disabled={!selectedSession}
-            className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Run (mock)
-          </button>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">Run history</h3>
+          <p className="text-xs text-slate-400">
+            {selectedSession ? selectedSession.title : "Select a session"}
+          </p>
         </div>
         <div className="mt-3 flex flex-col gap-2 text-xs text-slate-300">
           {runs.length === 0 ? (

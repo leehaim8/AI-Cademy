@@ -93,6 +93,28 @@ export function getCourse(courseId: string): Course | null {
   return courses.find((course) => course.id === courseId) ?? null;
 }
 
+export function updateCourse(
+  courseId: string,
+  fields: { name: string; code?: string; term?: string },
+): Course | null {
+  const courses = readJson<Course[]>(COURSES_KEY, []);
+  const index = courses.findIndex((course) => course.id === courseId);
+  if (index === -1) {
+    return null;
+  }
+
+  const updated: Course = {
+    ...courses[index],
+    name: fields.name.trim(),
+    code: fields.code?.trim() || undefined,
+    term: fields.term?.trim() || undefined,
+  };
+
+  courses[index] = updated;
+  writeJson(COURSES_KEY, courses);
+  return updated;
+}
+
 export function listEnabledAgents(courseId: string): Record<string, boolean> {
   const enabledAgents = readJson<EnabledAgentsByCourse>(ENABLED_AGENTS_KEY, {});
   const enabledAgentsSet = readJson<EnabledAgentsSetByCourse>(
