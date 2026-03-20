@@ -76,13 +76,21 @@ export default function CourseAgentPage() {
           <p className="text-xs font-medium uppercase tracking-[0.3em] text-sky-400">
             Agent workspace
           </p>
-          <Link
-            to={courseId ? `/courses/${courseId}/agents` : "/courses"}
-            className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
-          >
-            <span className="text-sm">←</span>
-            <span>Back to dashboard</span>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to={courseId ? `/courses/${courseId}/agents` : "/courses"}
+              className="text-xs font-medium text-slate-300 hover:text-sky-300 inline-flex items-center gap-1"
+            >
+              <span className="text-sm">←</span>
+              <span>Back to dashboard</span>
+            </Link>
+            <Link
+              to="/courses"
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+            >
+              Back to courses
+            </Link>
+          </div>
         </div>
 
         <div className="mb-6">

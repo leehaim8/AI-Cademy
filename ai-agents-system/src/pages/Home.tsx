@@ -1,61 +1,71 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AgentCard from "../components/AgentCard";
-import { getCourse, listEnabledAgents } from "../lib/courseStore";
+import {
+  agentCatalog,
+  getAgentAvailability,
+  getCourse,
+  listEnabledAgents,
+  setEnabledAgents,
+} from "../lib/courseStore";
+
+const agents = [
+  {
+    id: "topic",
+    title: "Topic Extraction Agent",
+    description: "Extracts key topics from academic content.",
+    emoji: "🧠",
+  },
+  {
+    id: "syllabus",
+    title: "Syllabus Builder",
+    description: "Builds structured course syllabi automatically.",
+    emoji: "📚",
+  },
+  {
+    id: "homework",
+    title: "Homework Generator",
+    description: "Generates personalized homework assignments.",
+    emoji: "📝",
+  },
+  {
+    id: "evaluation",
+    title: "Homework Checking Agent",
+    description:
+      "Checks homework against your rubric and suggests a grade.",
+    emoji: "✅",
+  },
+  {
+    id: "booklet",
+    title: "Course Booklet Generator",
+    description: "Creates a full course booklet.",
+    emoji: "📘",
+  },
+  {
+    id: "code-review",
+    title: "Pedagogical Code Review Agent",
+    description:
+      "Creates a sample solution and explains a pedagogical code review (demo only).",
+    emoji: "💻",
+  },
+] as const;
 
 export default function Home() {
   const { courseId = "" } = useParams();
+  const [agentState, setAgentState] = useState<Record<string, boolean> | null>(
+    courseId ? getAgentAvailability(courseId) : null,
+  );
+  const [showManager, setShowManager] = useState(false);
   const course = useMemo(
     () => (courseId ? getCourse(courseId) : null),
     [courseId],
   );
   const headline = course ? `Agents for ${course.name}` : "Choose an agent";
 
-  const agents = [
-    {
-      id: "topic",
-      title: "Topic Extraction Agent",
-      description: "Extracts key topics from academic content.",
-      emoji: "🧠",
-    },
-    {
-      id: "syllabus",
-      title: "Syllabus Builder",
-      description: "Builds structured course syllabi automatically.",
-      emoji: "📚",
-    },
-    {
-      id: "homework",
-      title: "Homework Generator",
-      description: "Generates personalized homework assignments.",
-      emoji: "📝",
-    },
-    {
-      id: "evaluation",
-      title: "Homework Checking Agent",
-      description:
-        "Checks homework against your rubric and suggests a grade.",
-      emoji: "✅",
-    },
-    {
-      id: "booklet",
-      title: "Course Booklet Generator",
-      description: "Creates a full course booklet.",
-      emoji: "📘",
-    },
-    {
-      id: "code-review",
-      title: "Pedagogical Code Review Agent",
-      description:
-        "Creates a sample solution and explains a pedagogical code review (demo only).",
-      emoji: "💻",
-    },
-  ];
-
   const enabledAgents = useMemo(() => {
     if (!courseId) return null;
-    return listEnabledAgents(courseId);
-  }, [courseId]);
+    return agentState ?? listEnabledAgents(courseId);
+  }, [agentState, courseId]);
 
   const filteredAgents = useMemo(() => {
     if (!courseId || !enabledAgents) return agents;
@@ -63,10 +73,20 @@ export default function Home() {
       const normalized = agent.id.replace("-", "_");
       return Boolean(enabledAgents[normalized]);
     });
-  }, [agents, courseId, enabledAgents]);
+  }, [courseId, enabledAgents]);
 
   const showEmptyState =
     Boolean(courseId) && enabledAgents && filteredAgents.length === 0;
+
+  function handleToggleAgent(agentKey: string) {
+    if (!courseId || !enabledAgents) return;
+    const next = {
+      ...enabledAgents,
+      [agentKey]: !(enabledAgents[agentKey] ?? true),
+    };
+    setAgentState(next);
+    setEnabledAgents(courseId, next);
+  }
 
   return (
     <div
@@ -90,11 +110,84 @@ export default function Home() {
           </Link>
         </div>
         <p className="max-w-2xl text-sm text-slate-300">
-          Pick an agent to help you design courses, generate assignments
-          and analyze student work. Each workspace is optimized for
-          AI‑powered teaching workflows.
+          Choose an agent to build courses, create assignments, and review
+          student work.
         </p>
       </header>
+
+      {courseId ? (
+        <div className="mb-6 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.3em] text-sky-400">
+                Course agents
+              </p>
+              <p className="mt-2 text-sm text-slate-300">
+                Add or remove agents for this specific course.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowManager((prev) => !prev)}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+            >
+              {showManager ? "Hide agent manager" : "Manage agents"}
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {agentCatalog.map((agent) => {
+              const isEnabled = enabledAgents?.[agent.key] ?? true;
+              return (
+                <span
+                  key={agent.key}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                    isEnabled
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                      : "border-slate-700 bg-slate-950/70 text-slate-500"
+                  }`}
+                >
+                  {agent.name}
+                </span>
+              );
+            })}
+          </div>
+
+          {showManager ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {agentCatalog.map((agent) => {
+                const isEnabled = enabledAgents?.[agent.key] ?? true;
+                return (
+                  <div
+                    key={agent.key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-800/70 bg-slate-950/50 p-4"
+                  >
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-semibold text-slate-100">
+                        {agent.name}
+                      </h2>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {agent.description}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAgent(agent.key)}
+                      className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                        isEnabled
+                          ? "border border-rose-500/50 bg-rose-500/10 text-rose-200 hover:border-rose-400"
+                          : "border border-sky-500/50 bg-sky-500/10 text-sky-200 hover:border-sky-400"
+                      }`}
+                    >
+                      {isEnabled ? "Remove agent" : "Add agent"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {showEmptyState ? (
         <div className="mb-6 rounded-xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">

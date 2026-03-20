@@ -111,6 +111,13 @@ export function listEnabledAgents(courseId: string): Record<string, boolean> {
   );
 }
 
+export function getAgentAvailability(courseId: string): Record<string, boolean> {
+  const enabled = listEnabledAgents(courseId);
+  return Object.fromEntries(
+    agentCatalog.map((agent) => [agent.key, enabled[agent.key] ?? true]),
+  );
+}
+
 export function setEnabledAgents(
   courseId: string,
   next: Record<string, boolean>,

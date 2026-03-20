@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../lib/authStorage";
 import { createCourse, listCourses } from "../lib/courseStore";
@@ -7,17 +7,14 @@ import type { Course } from "../types/course";
 export default function CoursesPage() {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<Course[]>(
+    currentUser ? listCourses(currentUser.id) : [],
+  );
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [term, setTerm] = useState("");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!currentUser) return;
-    setCourses(listCourses(currentUser.id));
-  }, [currentUser]);
 
   const firstName = useMemo(
     () => currentUser?.full_name?.split(" ")[0] ?? "",
@@ -47,7 +44,7 @@ export default function CoursesPage() {
 
   function handleOpenCourse(courseId: string) {
     const target = `/courses/${encodeURIComponent(courseId)}/agents`;
-    window.location.href = target;
+    navigate(target);
   }
 
   return (
