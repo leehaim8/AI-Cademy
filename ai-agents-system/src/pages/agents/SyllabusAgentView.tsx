@@ -412,11 +412,11 @@ export default function SyllabusAgentView({
   }, [selectedRun]);
 
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
+    <div className="grid h-full items-stretch gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
       <form
         onSubmit={handleGenerate}
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
-        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex flex-col gap-4"
+        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <div className="flex items-center justify-between gap-3 mb-1">
           <h2 className="text-sm font-semibold text-slate-100">
@@ -622,7 +622,7 @@ export default function SyllabusAgentView({
 
       <div
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
-        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex flex-col gap-4"
+        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <h2 className="text-sm font-semibold text-slate-100">
           Week-by-week syllabus

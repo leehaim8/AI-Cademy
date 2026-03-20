@@ -94,13 +94,13 @@ export default function SessionsPanel({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+    <div className="flex h-full flex-col gap-6">
+      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-100">Sessions</h2>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 text-xs text-slate-300">
+        <div className="mt-4 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
           {sessions.length === 0 ? (
             <p className="text-xs text-slate-400">
               No sessions yet. Create one to start.
@@ -157,9 +157,9 @@ export default function SessionsPanel({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <h3 className="text-sm font-semibold text-slate-100">New session</h3>
-        <div className="mt-3 flex flex-col gap-3">
+        <div className="mt-3 flex h-[calc(100%-1.75rem)] flex-col gap-3">
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -171,7 +171,7 @@ export default function SessionsPanel({
             onChange={(event) => setNotes(event.target.value)}
             placeholder="Notes (optional)"
             rows={3}
-            className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
+            className="min-h-[8rem] flex-1 rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
           />
           <button
             type="button"
@@ -183,14 +183,14 @@ export default function SessionsPanel({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <div>
           <h3 className="text-sm font-semibold text-slate-100">Run history</h3>
           <p className="text-xs text-slate-400">
             {selectedSession ? selectedSession.title : "Select a session"}
           </p>
         </div>
-        <div className="mt-3 flex flex-col gap-2 text-xs text-slate-300">
+        <div className="mt-3 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
           {runs.length === 0 ? (
             <p className="text-xs text-slate-400">
               No runs yet. Click Run to create one.

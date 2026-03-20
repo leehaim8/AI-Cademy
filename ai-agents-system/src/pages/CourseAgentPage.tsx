@@ -100,13 +100,15 @@ export default function CourseAgentPage() {
           ) : null}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <SessionsPanel
-            courseId={courseId}
-            agentKey={agentKey}
-            onRunSelect={setSelectedRun}
-          />
-          <div>
+        <div className="grid items-stretch gap-6 md:grid-cols-[minmax(320px,1fr)_minmax(0,2fr)]">
+          <div className="h-full">
+            <SessionsPanel
+              courseId={courseId}
+              agentKey={agentKey}
+              onRunSelect={setSelectedRun}
+            />
+          </div>
+          <div className="h-full">
             {normalizedKey === "syllabus" ? (
               <SyllabusAgentView
                 selectedRun={selectedRun}

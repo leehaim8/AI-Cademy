@@ -193,12 +193,12 @@ export default function TopicAgentView() {
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
+    <div className="grid h-full items-stretch gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
       {/* Input */}
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
-        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex flex-col gap-4"
+        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <div className="flex items-center justify-between gap-3 mb-1">
           <h2 className="text-sm font-semibold text-slate-100">Input material</h2>
@@ -354,7 +354,7 @@ export default function TopicAgentView() {
       {/* Results */}
       <div
         className="rounded-2xl border border-slate-800/70 bg-slate-900/80
-        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex flex-col gap-4"
+        backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -432,7 +432,7 @@ export default function TopicAgentView() {
             No extracted topics to review yet.
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex items-center justify-start gap-3 text-xs text-slate-300">
               <label className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200">
                 <input
