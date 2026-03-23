@@ -1,9 +1,12 @@
-import { useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   extractTopics,
   extractTopicsWithFiles,
+  getTopicExtractionRun,
+  listTopicExtractionRuns,
   saveEditedTopics,
+  type TopicExtractionRunSummary,
 } from "../../lib/api";
 
 type UploadedFile = {
@@ -47,8 +50,11 @@ export default function TopicAgentView() {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
-  const [view, setView] = useState<"suggested" | "review">("suggested");
+  const [view, setView] = useState<"suggested" | "review" | "history">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
+  const [historyRuns, setHistoryRuns] = useState<TopicExtractionRunSummary[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const allTopicsApproved =
     reviewTopics.length > 0 && reviewTopics.every((topic) => topic.approved);
@@ -190,6 +196,66 @@ export default function TopicAgentView() {
   const resetSaveState = () => {
     setSaveMessage(null);
     setSaveState("idle");
+  };
+
+  useEffect(() => {
+    if (view !== "history") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadHistoryRuns = async () => {
+      setIsLoadingHistory(true);
+      setHistoryError(null);
+      try {
+        const runs = await listTopicExtractionRuns(30);
+        if (!cancelled) {
+          setHistoryRuns(runs);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Could not load history.";
+          setHistoryError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingHistory(false);
+        }
+      }
+    };
+
+    void loadHistoryRuns();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  const handleLoadHistoryRun = async (runId: string) => {
+    setHistoryError(null);
+    try {
+      const run = await getTopicExtractionRun(runId);
+      const chosenTopics =
+        run.edited_topics && run.edited_topics.length > 0
+          ? run.edited_topics
+          : run.all_topics;
+
+      setSeminarTopic(run.seminar_topic?.trim() || seminarTopic);
+      setCurrentRunId(run.run_id);
+      setTopics(chosenTopics);
+      setReviewTopics(toReviewTopics(chosenTopics));
+      setHasSubmitted(true);
+      resetSaveState();
+      setView("review");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not load selected run.";
+      setHistoryError(message);
+    }
   };
 
   return (
@@ -359,12 +425,18 @@ export default function TopicAgentView() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-semibold text-slate-100">
-              {view === "suggested" ? "Suggested topics" : "Review topics"}
+              {view === "suggested"
+                ? "Suggested topics"
+                : view === "review"
+                  ? "Review topics"
+                  : "History"}
             </h2>
             <p className="text-xs text-slate-400">
               {view === "suggested"
                 ? "Auto-generated topics from the input content."
-                : "Edit topics and save approved ones to the database."}
+                : view === "review"
+                  ? "Edit topics and save approved ones to the database."
+                  : "Load previous extraction runs and continue from there."}
             </p>
           </div>
           <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
@@ -389,6 +461,17 @@ export default function TopicAgentView() {
               }`}
             >
               Review topics
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("history")}
+              className={`px-3 py-1 rounded-full transition-colors ${
+                view === "history"
+                  ? "bg-sky-500 text-slate-50"
+                  : "text-slate-300 hover:text-slate-100"
+              }`}
+            >
+              History
             </button>
           </div>
         </div>
@@ -427,6 +510,51 @@ export default function TopicAgentView() {
               </ul>
             </div>
           )
+        ) : view === "history" ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {isLoadingHistory ? (
+              <div className="flex items-center gap-2 text-xs text-sky-200">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-200 border-t-transparent" />
+                <span>Loading history...</span>
+              </div>
+            ) : historyError ? (
+              <p className="text-xs text-rose-300">{historyError}</p>
+            ) : historyRuns.length === 0 ? (
+              <p className="text-xs text-slate-400">
+                No previous runs found yet.
+              </p>
+            ) : (
+              <div className="max-h-[420px] overflow-y-auto pr-1">
+                <div className="flex flex-col gap-2">
+                  {historyRuns.map((run) => (
+                    <button
+                      key={run.run_id}
+                      type="button"
+                      onClick={() => void handleLoadHistoryRun(run.run_id)}
+                      className="w-full rounded-2xl border border-slate-800/70 bg-slate-950/50 px-4 py-3 text-left hover:border-sky-400/70"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="line-clamp-1 text-xs font-semibold text-slate-100">
+                          {run.seminar_topic || "Untitled run"}
+                        </p>
+                        <span className="rounded-full bg-slate-800/80 px-2 py-0.5 text-[10px] text-slate-300">
+                          {run.source_type || "unknown"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {run.created_at
+                          ? new Date(run.created_at).toLocaleString()
+                          : "Unknown date"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-sky-200">
+                        Topics: {run.edited_topics_count}/{run.total_topics}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : reviewTopics.length === 0 ? (
           <p className="text-xs text-slate-400">
             No extracted topics to review yet.
@@ -612,7 +740,9 @@ export default function TopicAgentView() {
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           {view === "suggested"
             ? "Key topics are extracted from your material. You can send them to the Syllabus Builder or adjust them manually there."
-            : "Use this review step to approve, edit, or remove topics before sharing with colleagues."}
+            : view === "review"
+              ? "Use this review step to approve, edit, or remove topics before sharing with colleagues."
+              : "Use history to reload a previous extraction run and continue editing."}
         </p>
       </div>
     </div>

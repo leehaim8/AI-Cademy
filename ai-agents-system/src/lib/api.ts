@@ -33,6 +33,28 @@ export type TopicExtractionEditPayload = {
   edited_topics: string[];
 };
 
+export type TopicExtractionRunSummary = {
+  run_id: string;
+  source_type?: string;
+  seminar_topic?: string;
+  created_at?: string;
+  updated_at?: string;
+  total_topics: number;
+  edited_topics_count: number;
+};
+
+export type TopicExtractionRun = {
+  run_id: string;
+  source_type?: string;
+  seminar_topic?: string;
+  created_at?: string;
+  updated_at?: string;
+  all_topics: string[];
+  edited_topics: string[];
+  clusters: string[][];
+  summary_md?: string | null;
+};
+
 export type SyllabusGenerationPayload = {
   topics: string[];
   num_weeks: number;
@@ -193,6 +215,32 @@ export async function saveEditedTopics(
   }
 
   return (await res.json()) as { run_id: string; edited_topics: string[] };
+}
+
+export async function listTopicExtractionRuns(
+  limit = 20
+): Promise<TopicExtractionRunSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/topic-extraction/runs?limit=${limit}`);
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { runs: TopicExtractionRunSummary[] };
+  return data.runs;
+}
+
+export async function getTopicExtractionRun(
+  runId: string
+): Promise<TopicExtractionRun> {
+  const res = await fetch(`${API_BASE_URL}/topic-extraction/runs/${runId}`);
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { run: TopicExtractionRun };
+  return data.run;
 }
 
 export async function generateSyllabus(

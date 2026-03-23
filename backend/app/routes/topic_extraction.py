@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -18,6 +19,57 @@ from ..services.topic_extractor import (
 )
 
 router = APIRouter(prefix="/topic-extraction", tags=["topic-extraction"])
+
+
+def _serialize_topic_extraction_run(document: dict[str, Any]) -> dict[str, Any]:
+    output_data = document.get("output_data", {})
+    all_topics = output_data.get("all_topics") or []
+    clusters = output_data.get("clusters") or []
+
+    return {
+        "run_id": str(document["_id"]),
+        "source_type": document.get("source_type"),
+        "seminar_topic": document.get("seminar_topic"),
+        "created_at": document.get("created_at"),
+        "updated_at": document.get("updated_at"),
+        "all_topics": all_topics,
+        "edited_topics": document.get("edited_topics") or all_topics,
+        "clusters": clusters,
+        "summary_md": output_data.get("summary_md"),
+    }
+
+
+@router.get("/runs")
+def list_topic_extraction_runs(limit: int = 20) -> dict[str, list[dict[str, Any]]]:
+    safe_limit = max(1, min(limit, 100))
+    docs = topic_extraction_collection.find().sort("_id", -1).limit(safe_limit)
+    runs: list[dict[str, Any]] = []
+
+    for document in docs:
+        serialized = _serialize_topic_extraction_run(document)
+        runs.append(
+            {
+                "run_id": serialized["run_id"],
+                "source_type": serialized["source_type"],
+                "seminar_topic": serialized["seminar_topic"],
+                "created_at": serialized["created_at"],
+                "updated_at": serialized["updated_at"],
+                "total_topics": len(serialized["all_topics"]),
+                "edited_topics_count": len(serialized["edited_topics"]),
+            }
+        )
+
+    return {"runs": runs}
+
+
+@router.get("/runs/{run_id}")
+def get_topic_extraction_run(run_id: str) -> dict[str, Any]:
+    object_id = parse_object_id(run_id, "topic extraction id")
+    doc = topic_extraction_collection.find_one({"_id": object_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Topic extraction run not found.")
+
+    return {"run": _serialize_topic_extraction_run(doc)}
 
 
 @router.post("", response_model=TopicExtractionResponse)
