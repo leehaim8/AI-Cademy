@@ -68,6 +68,11 @@ export default function SessionsPanel({
     onRunSelect?.(listRuns(sessionId)[0] ?? null);
   }
 
+  function handleCloseSession() {
+    setSelectedSessionId(null);
+    onRunSelect?.(null);
+  }
+
   function handleCreateSession() {
     if (!title.trim()) return;
     createSession(courseId, agentKey, title, notes);
@@ -126,30 +131,55 @@ export default function SessionsPanel({
                       {new Date(session.created_at).toLocaleDateString()}
                     </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSession(session.id)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 text-slate-400 hover:border-rose-400 hover:text-rose-300"
-                    aria-label={`Delete session ${session.title}`}
-                    title="Delete session"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  <div className="flex items-center gap-2">
+                    {effectiveSelectedSessionId === session.id ? (
+                      <button
+                        type="button"
+                        onClick={handleCloseSession}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+                        aria-label={`Close session ${session.title}`}
+                        title="Close session"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSession(session.id)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 text-slate-400 hover:border-rose-400 hover:text-rose-300"
+                      aria-label={`Delete session ${session.title}`}
+                      title="Delete session"
                     >
-                      <path d="M3 6h18" />
-                      <path d="M8 6V4h8v2" />
-                      <path d="M19 6l-1 14H6L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                    </svg>
-                  </button>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

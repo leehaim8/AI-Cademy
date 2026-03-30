@@ -3,11 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   extractTopics,
   extractTopicsWithFiles,
-  getTopicExtractionRun,
-  listTopicExtractionRuns,
   saveEditedTopics,
-  type TopicExtractionRunSummary,
 } from "../../lib/api";
+import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
+import { createRun, createSession } from "../../lib/sessionStore";
+import type { SessionRun } from "../../types/course";
 
 type UploadedFile = {
   id: string;
@@ -34,12 +34,31 @@ function toReviewTopics(values: string[]): ReviewTopic[] {
   }));
 }
 
-export default function TopicAgentView() {
+type TopicAgentViewProps = {
+  selectedRun?: SessionRun | null;
+  onClearSelectedRun?: () => void;
+  clearSelectionVersion?: number;
+};
+
+type SavedTopicInput = {
+  seminar_topic?: string;
+  input_mode?: "text" | "file";
+  raw_text?: string;
+};
+
+type SavedTopicOutput = {
+  topics?: string[];
+  review_topics?: Array<{ title?: string; approved?: boolean }>;
+};
+
+export default function TopicAgentView({
+  selectedRun = null,
+  onClearSelectedRun,
+  clearSelectionVersion = 0,
+}: TopicAgentViewProps) {
   const navigate = useNavigate();
-  const { courseId = "" } = useParams();
-  const [seminarTopic, setSeminarTopic] = useState(
-    "Operating Systems in Software Engineering",
-  );
+  const { courseId = "", agentKey = "" } = useParams();
+  const [seminarTopic, setSeminarTopic] = useState("");
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [text, setText] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -50,14 +69,20 @@ export default function TopicAgentView() {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
-  const [view, setView] = useState<"suggested" | "review" | "history">("suggested");
+  const [view, setView] = useState<"suggested" | "review">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
-  const [historyRuns, setHistoryRuns] = useState<TopicExtractionRunSummary[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const allTopicsApproved =
     reviewTopics.length > 0 && reviewTopics.every((topic) => topic.approved);
+
+  const approvedTopics = useMemo(
+    () =>
+      reviewTopics
+        .filter((topic) => topic.approved)
+        .map((topic) => topic.title.trim())
+        .filter(Boolean),
+    [reviewTopics],
+  );
 
   const fileLabel = useMemo(() => {
     if (uploadedFiles.length === 0) return null;
@@ -146,6 +171,7 @@ export default function TopicAgentView() {
       setCurrentRunId(result.run_id ?? null);
       setTopics(extractedTopics);
       setReviewTopics(toReviewTopics(extractedTopics));
+      setView("suggested");
     } catch (error) {
       const message =
         error instanceof Error
@@ -198,65 +224,137 @@ export default function TopicAgentView() {
     setSaveState("idle");
   };
 
-  useEffect(() => {
-    if (view !== "history") {
+  const handleNavigateToSyllabus = () => {
+    const nextTopics = approvedTopics.length > 0 ? approvedTopics : topics;
+
+    if (courseId) {
+      const availability = getAgentAvailability(courseId);
+      if (!availability.syllabus) {
+        const shouldEnable = window.confirm(
+          'Syllabus Builder is not added to this course yet. Do you want to add it now?',
+        );
+        if (!shouldEnable) {
+          return;
+        }
+        enableAgentForCourse(courseId, "syllabus");
+      }
+    }
+
+    navigate(courseId ? `/courses/${courseId}/agents/syllabus` : "/agent/syllabus", {
+      state: { fromTopicAgent: true, topics: nextTopics },
+    });
+  };
+
+  const handleSaveOutput = () => {
+    if (!courseId || !agentKey) {
+      setSaveState("error");
+      setSaveMessage("Course context is missing, so the topics could not be saved.");
       return;
     }
 
-    let cancelled = false;
-
-    const loadHistoryRuns = async () => {
-      setIsLoadingHistory(true);
-      setHistoryError(null);
-      try {
-        const runs = await listTopicExtractionRuns(30);
-        if (!cancelled) {
-          setHistoryRuns(runs);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Could not load history.";
-          setHistoryError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingHistory(false);
-        }
-      }
-    };
-
-    void loadHistoryRuns();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [view]);
-
-  const handleLoadHistoryRun = async (runId: string) => {
-    setHistoryError(null);
-    try {
-      const run = await getTopicExtractionRun(runId);
-      const chosenTopics =
-        run.edited_topics && run.edited_topics.length > 0
-          ? run.edited_topics
-          : run.all_topics;
-
-      setSeminarTopic(run.seminar_topic?.trim() || seminarTopic);
-      setCurrentRunId(run.run_id);
-      setTopics(chosenTopics);
-      setReviewTopics(toReviewTopics(chosenTopics));
-      setHasSubmitted(true);
-      resetSaveState();
-      setView("review");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not load selected run.";
-      setHistoryError(message);
+    if (topics.length === 0) {
+      setSaveState("error");
+      setSaveMessage("Extract topics before saving them.");
+      return;
     }
+
+    const sessionTitle = seminarTopic.trim() || "Topic extraction output";
+    const notes = "Topic extraction output";
+
+    const session = createSession(courseId, agentKey, sessionTitle, notes);
+
+    createRun(
+      session.id,
+      {
+        seminar_topic: seminarTopic.trim(),
+        input_mode: inputMode,
+        raw_text: text,
+      },
+      {
+        topics,
+        review_topics: reviewTopics.map((topic) => ({
+          title: topic.title,
+          approved: topic.approved,
+        })),
+      },
+      "success",
+    );
+
+    setSaveState("success");
+    setSaveMessage("Topic output saved to session history.");
+    onClearSelectedRun?.();
   };
+
+  useEffect(() => {
+    if (!selectedRun) {
+      return;
+    }
+
+    const inputData =
+      selectedRun.input_data && typeof selectedRun.input_data === "object"
+        ? (selectedRun.input_data as SavedTopicInput)
+        : null;
+    const outputData =
+      selectedRun.output_data && typeof selectedRun.output_data === "object"
+        ? (selectedRun.output_data as SavedTopicOutput)
+        : null;
+
+    const restoredTopics = Array.isArray(outputData?.topics)
+      ? outputData.topics.filter(Boolean)
+      : [];
+    const restoredReviewTopics = Array.isArray(outputData?.review_topics)
+      ? outputData.review_topics
+          .map((topic) => {
+            const title = typeof topic?.title === "string" ? topic.title.trim() : "";
+            if (!title) {
+              return null;
+            }
+            return {
+              id: crypto.randomUUID(),
+              title,
+              approved: topic?.approved ?? true,
+              isEditing: false,
+              draft: title,
+            };
+          })
+          .filter((topic): topic is ReviewTopic => topic !== null)
+      : toReviewTopics(restoredTopics);
+
+    if (typeof inputData?.seminar_topic === "string" && inputData.seminar_topic.trim()) {
+      setSeminarTopic(inputData.seminar_topic.trim());
+    }
+    if (inputData?.input_mode === "text" || inputData?.input_mode === "file") {
+      setInputMode(inputData.input_mode);
+    }
+    if (typeof inputData?.raw_text === "string") {
+      setText(inputData.raw_text);
+    }
+
+    setUploadedFiles([]);
+    setCurrentRunId(null);
+    setTopics(restoredTopics);
+    setReviewTopics(restoredReviewTopics);
+    setHasSubmitted(restoredTopics.length > 0);
+    setErrorMessage(null);
+    resetSaveState();
+    setView("suggested");
+  }, [selectedRun]);
+
+  useEffect(() => {
+    setSeminarTopic("");
+    setInputMode("text");
+    setText("");
+    setUploadedFiles([]);
+    setIsAnalyzing(false);
+    setHasSubmitted(false);
+    setErrorMessage(null);
+    setTopics([]);
+    setCurrentRunId(null);
+    setSaveMessage(null);
+    setSaveState("idle");
+    setView("suggested");
+    setReviewTopics([]);
+  }, [clearSelectionVersion]);
 
   return (
     <div className="grid h-full items-stretch gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
@@ -425,18 +523,12 @@ export default function TopicAgentView() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-semibold text-slate-100">
-              {view === "suggested"
-                ? "Suggested topics"
-                : view === "review"
-                  ? "Review topics"
-                  : "History"}
+              {view === "suggested" ? "Suggested topics" : "Review topics"}
             </h2>
             <p className="text-xs text-slate-400">
               {view === "suggested"
                 ? "Auto-generated topics from the input content."
-                : view === "review"
-                  ? "Edit topics and save approved ones to the database."
-                  : "Load previous extraction runs and continue from there."}
+                : "Edit topics and save approved ones to the database."}
             </p>
           </div>
           <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
@@ -461,17 +553,6 @@ export default function TopicAgentView() {
               }`}
             >
               Review topics
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("history")}
-              className={`px-3 py-1 rounded-full transition-colors ${
-                view === "history"
-                  ? "bg-sky-500 text-slate-50"
-                  : "text-slate-300 hover:text-slate-100"
-              }`}
-            >
-              History
             </button>
           </div>
         </div>
@@ -510,51 +591,6 @@ export default function TopicAgentView() {
               </ul>
             </div>
           )
-        ) : view === "history" ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            {isLoadingHistory ? (
-              <div className="flex items-center gap-2 text-xs text-sky-200">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-200 border-t-transparent" />
-                <span>Loading history...</span>
-              </div>
-            ) : historyError ? (
-              <p className="text-xs text-rose-300">{historyError}</p>
-            ) : historyRuns.length === 0 ? (
-              <p className="text-xs text-slate-400">
-                No previous runs found yet.
-              </p>
-            ) : (
-              <div className="max-h-[420px] overflow-y-auto pr-1">
-                <div className="flex flex-col gap-2">
-                  {historyRuns.map((run) => (
-                    <button
-                      key={run.run_id}
-                      type="button"
-                      onClick={() => void handleLoadHistoryRun(run.run_id)}
-                      className="w-full rounded-2xl border border-slate-800/70 bg-slate-950/50 px-4 py-3 text-left hover:border-sky-400/70"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="line-clamp-1 text-xs font-semibold text-slate-100">
-                          {run.seminar_topic || "Untitled run"}
-                        </p>
-                        <span className="rounded-full bg-slate-800/80 px-2 py-0.5 text-[10px] text-slate-300">
-                          {run.source_type || "unknown"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {run.created_at
-                          ? new Date(run.created_at).toLocaleString()
-                          : "Unknown date"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-sky-200">
-                        Topics: {run.edited_topics_count}/{run.total_topics}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         ) : reviewTopics.length === 0 ? (
           <p className="text-xs text-slate-400">
             No extracted topics to review yet.
@@ -722,27 +758,35 @@ export default function TopicAgentView() {
         )}
 
         {view === "suggested" && hasSubmitted && topics.length > 0 && (
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() =>
-                navigate(courseId ? `/courses/${courseId}/agents/syllabus` : "/agent/syllabus", {
-                  state: { fromTopicAgent: true, topics },
-                })
-              }
-              className="inline-flex items-center gap-2 rounded-lg border border-sky-500/60 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-sky-100 hover:bg-sky-500/10 hover:border-sky-400"
-            >
-              <span>Use topics in Syllabus Builder</span>
-            </button>
+          <div className="mt-3 flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <button
+                type="button"
+                onClick={handleSaveOutput}
+                className="inline-flex w-full items-center justify-center rounded-md border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:border-sky-400 hover:bg-sky-500/15 hover:text-sky-100 sm:w-auto"
+              >
+                <span>Save output</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNavigateToSyllabus}
+                className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto"
+              >
+                <span>Use topics in Syllabus Builder</span>
+              </button>
+            </div>
+            {saveMessage ? (
+              <p className={`text-xs ${saveState === "error" ? "text-rose-300" : "text-emerald-300"}`}>
+                {saveMessage}
+              </p>
+            ) : null}
           </div>
         )}
 
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           {view === "suggested"
             ? "Key topics are extracted from your material. You can send them to the Syllabus Builder or adjust them manually there."
-            : view === "review"
-              ? "Use this review step to approve, edit, or remove topics before sharing with colleagues."
-              : "Use history to reload a previous extraction run and continue editing."}
+            : "Use this review step to approve, edit, or remove topics before sharing with colleagues."}
         </p>
       </div>
     </div>

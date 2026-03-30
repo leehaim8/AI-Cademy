@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
+import { useLocation, useParams } from "react-router-dom";
+import { getCourse } from "../../lib/courseStore";
+import type { SyllabusWeek } from "../../lib/api";
 
 type BookletConfig = {
   courseName: string;
@@ -44,6 +47,14 @@ type AgentState =
   | "error";
 
 type TabKey = "outline" | "draft" | "export";
+
+type BookletLocationState = {
+  fromSyllabusAgent?: boolean;
+  weeks?: SyllabusWeek[];
+  topics?: string[];
+  audience?: string;
+  constraints?: string;
+};
 
 const defaultConfig: BookletConfig = {
   courseName: "",
@@ -125,16 +136,43 @@ const mockExport = async (
   return `${baseName}.${type}`;
 };
 
+function outlineFromSyllabus(weeks: SyllabusWeek[]): CourseOutline {
+  return {
+    units: weeks.map((week) => ({
+      title: `Week ${week.week}: ${week.central_topic}`,
+      topics: week.topics.length > 0 ? week.topics : ["No topics assigned"],
+    })),
+  };
+}
+
 export default function BookletAgentView() {
+  const { courseId = "" } = useParams();
+  const location = useLocation() as { state?: BookletLocationState };
+  const course = courseId ? getCourse(courseId) : null;
   const [config, setConfig] = useState<BookletConfig>(defaultConfig);
   const [files, setFiles] = useState<File[]>([]);
   const [outline, setOutline] = useState<CourseOutline | null>(null);
   const [draft, setDraft] = useState<BookletDraft | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("idle");
   const [activeTab, setActiveTab] = useState<TabKey>("outline");
-  const [runLog, setRunLog] = useState<RunLogItem[]>([]);
+  const [, setRunLog] = useState<RunLogItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "pdf" | "docx">(null);
+
+  const importedWeeks = useMemo(
+    () =>
+      location.state?.fromSyllabusAgent && Array.isArray(location.state.weeks)
+        ? location.state.weeks
+        : [],
+    [location.state],
+  );
+  const importedTopics = useMemo(
+    () =>
+      location.state?.fromSyllabusAgent && Array.isArray(location.state.topics)
+        ? location.state.topics.filter(Boolean)
+        : [],
+    [location.state],
+  );
 
   const stepIndex = useMemo(() => {
     if (agentState === "ingesting") return 1;
@@ -168,7 +206,7 @@ export default function BookletAgentView() {
       setAgentState("outline_ready");
       setActiveTab("outline");
       addLog("success", "Outline generated");
-    } catch (error) {
+    } catch {
       setAgentState("error");
       setErrorMessage("Failed to generate outline. Please retry.");
       addLog("error", "Outline generation failed");
@@ -187,7 +225,7 @@ export default function BookletAgentView() {
       setDraft(draftResult);
       setAgentState("draft_ready");
       addLog("success", "Draft sections generated");
-    } catch (error) {
+    } catch {
       setAgentState("error");
       setErrorMessage("Failed to generate draft. Please retry.");
       addLog("error", "Draft generation failed");
@@ -199,7 +237,7 @@ export default function BookletAgentView() {
     try {
       const filename = await mockExport(type, draft);
       addLog("success", `Export prepared: ${filename}`);
-    } catch (error) {
+    } catch {
       addLog("error", "Export failed");
     } finally {
       setExporting(null);
@@ -232,13 +270,45 @@ export default function BookletAgentView() {
     try {
       await navigator.clipboard.writeText(content);
       addLog("success", "Section copied to clipboard");
-    } catch (error) {
+    } catch {
       addLog("warning", "Clipboard copy failed");
     }
   };
 
   const outlineReady = agentState === "outline_ready" || agentState === "drafting" || agentState === "draft_ready";
   const draftReady = agentState === "draft_ready";
+
+  useEffect(() => {
+    if (!location.state?.fromSyllabusAgent || importedWeeks.length === 0) {
+      return;
+    }
+
+    setConfig((prev) => ({
+      ...prev,
+      courseName: prev.courseName || course?.name || "",
+      sourceType: "Syllabus",
+    }));
+    setFiles([]);
+    setOutline(outlineFromSyllabus(importedWeeks));
+    setDraft(null);
+    setAgentState("outline_ready");
+    setActiveTab("outline");
+    setErrorMessage(null);
+    setRunLog((prev) => {
+      if (prev.some((entry) => entry.message === "Imported syllabus from Syllabus Builder")) {
+        return prev;
+      }
+      return [
+        {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toLocaleTimeString(),
+          status: "success",
+          message: "Imported syllabus from Syllabus Builder",
+        },
+        ...prev,
+      ];
+    });
+  }, [course?.name, importedWeeks, location.state]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -254,8 +324,17 @@ export default function BookletAgentView() {
           </div>
 
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-            <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
+              <div className="flex flex-col gap-4">
+                <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
+
+              {importedWeeks.length > 0 ? (
+                <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-xs text-violet-100">
+                  <p className="font-semibold">Imported from Syllabus Builder</p>
+                  <p className="mt-1 text-violet-200/90">
+                    Loaded {importedWeeks.length} weeks and {importedTopics.length} topics into the booklet outline.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">

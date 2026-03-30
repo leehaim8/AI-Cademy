@@ -42,12 +42,20 @@ type AgentKey = keyof typeof agentViews;
 export default function CourseAgentPage() {
   const { courseId = "", agentKey = "" } = useParams();
   const [selectedRun, setSelectedRun] = useState<SessionRun | null>(null);
+  const [clearSelectionVersion, setClearSelectionVersion] = useState(0);
   const normalizedKey = agentKey.replace("_", "-") as AgentKey;
   const agent = agentViews[normalizedKey];
   const course = courseId ? getCourse(courseId) : null;
   const agentMeta = agentCatalog.find(
     (entry) => entry.key === agentKey.replace("-", "_"),
   );
+
+  const handleRunSelect = (run: SessionRun | null) => {
+    setSelectedRun(run);
+    if (run === null) {
+      setClearSelectionVersion((prev) => prev + 1);
+    }
+  };
 
   if (!agent) {
     return (
@@ -105,17 +113,22 @@ export default function CourseAgentPage() {
             <SessionsPanel
               courseId={courseId}
               agentKey={agentKey}
-              onRunSelect={setSelectedRun}
+              onRunSelect={handleRunSelect}
             />
           </div>
           <div className="h-full">
             {normalizedKey === "syllabus" ? (
               <SyllabusAgentView
                 selectedRun={selectedRun}
-                onClearSelectedRun={() => setSelectedRun(null)}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
               />
             ) : normalizedKey === "topic" ? (
-              <TopicAgentView />
+              <TopicAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
+              />
             ) : normalizedKey === "homework" ? (
               <HomeworkAgentView />
             ) : normalizedKey === "evaluation" ? (

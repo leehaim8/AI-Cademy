@@ -154,3 +154,15 @@ export function setEnabledAgents(
   enabledAgentsSet[courseId] = true;
   writeJson(ENABLED_AGENTS_SET_KEY, enabledAgentsSet);
 }
+
+export function enableAgentForCourse(courseId: string, agentKey: string): void {
+  const current = getAgentAvailability(courseId);
+  if (current[agentKey] ?? true) {
+    return;
+  }
+
+  setEnabledAgents(courseId, {
+    ...current,
+    [agentKey]: true,
+  });
+}

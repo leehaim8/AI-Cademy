@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
 import { getCurrentUser } from "../../lib/authStorage";
+import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
 import aiCademyLogo from "../../assets/ai-cademy-logo.svg";
@@ -12,6 +13,7 @@ type TopicSourceMode = "paste" | "manual";
 type SyllabusAgentViewProps = {
   selectedRun?: SessionRun | null;
   onClearSelectedRun?: () => void;
+  clearSelectionVersion?: number;
 };
 
 function normalizeTopics(raw: string): string[] {
@@ -24,7 +26,9 @@ function normalizeTopics(raw: string): string[] {
 export default function SyllabusAgentView({
   selectedRun = null,
   onClearSelectedRun,
+  clearSelectionVersion = 0,
 }: SyllabusAgentViewProps) {
+  const navigate = useNavigate();
   const { courseId = "", agentKey = "" } = useParams();
   const currentUser = getCurrentUser();
   const instructorName = currentUser?.full_name ?? "";
@@ -37,9 +41,10 @@ export default function SyllabusAgentView({
       Array.isArray(location.state.topics) &&
       location.state.topics.length > 0,
   );
-  const initialImportedTopics = initialFromTopic
-    ? (location.state?.topics ?? []).filter(Boolean)
-    : [];
+  const initialImportedTopics = useMemo(
+    () => (initialFromTopic ? (location.state?.topics ?? []).filter(Boolean) : []),
+    [initialFromTopic, location.state?.topics],
+  );
 
   const [mode, setMode] = useState<TopicSourceMode>(
     initialFromTopic ? "paste" : "manual",
@@ -50,10 +55,8 @@ export default function SyllabusAgentView({
   const [manualTopic, setManualTopic] = useState("");
   const [manualTopics, setManualTopics] = useState<string[]>([]);
   const [weeks, setWeeks] = useState(12);
-  const [audience, setAudience] = useState("University students");
-  const [constraints, setConstraints] = useState(
-    "Prefer foundations before advanced topics.",
-  );
+  const [audience, setAudience] = useState("");
+  const [constraints, setConstraints] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -312,6 +315,34 @@ export default function SyllabusAgentView({
     img.src = aiCademyLogo;
   };
 
+  const handleNavigateToBooklet = () => {
+    if (courseId) {
+      const availability = getAgentAvailability(courseId);
+      if (!availability.booklet) {
+        const shouldEnable = window.confirm(
+          'Course Booklet Generator is not added to this course yet. Do you want to add it now?',
+        );
+        if (!shouldEnable) {
+          return;
+        }
+        enableAgentForCourse(courseId, "booklet");
+      }
+    }
+
+    navigate(
+      courseId ? `/courses/${courseId}/agents/booklet` : "/agent/booklet",
+      {
+        state: {
+          fromSyllabusAgent: true,
+          weeks: weekPlan,
+          topics,
+          audience,
+          constraints,
+        },
+      },
+    );
+  };
+
   const handleSaveOutput = () => {
     if (!courseId || !agentKey) {
       setSaveState("error");
@@ -410,6 +441,22 @@ export default function SyllabusAgentView({
       setSaveState("idle");
     }
   }, [selectedRun]);
+
+  useEffect(() => {
+    setMode(initialFromTopic ? "paste" : "manual");
+    setPastedTopics(initialImportedTopics.join("\n"));
+    setManualTopic("");
+    setManualTopics([]);
+    setWeeks(12);
+    setAudience("");
+    setConstraints("");
+    setIsGenerating(false);
+    setHasGenerated(false);
+    setErrorMessage(null);
+    setWeekPlan([]);
+    setSaveMessage(null);
+    setSaveState("idle");
+  }, [clearSelectionVersion, initialFromTopic, initialImportedTopics]);
 
   return (
     <div className="grid h-full items-stretch gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)]">
@@ -708,6 +755,14 @@ export default function SyllabusAgentView({
                   className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
                 >
                   <span>Download PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNavigateToBooklet}
+                  disabled={weekPlan.length === 0}
+                  className="inline-flex w-full items-center justify-center rounded-md border border-violet-500/50 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-200 hover:border-violet-400 hover:bg-violet-500/15 hover:text-violet-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                >
+                  <span>Use in Course Booklet Generator</span>
                 </button>
               </div>
             </div>
