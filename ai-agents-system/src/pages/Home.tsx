@@ -80,9 +80,20 @@ export default function Home() {
 
   function handleToggleAgent(agentKey: string) {
     if (!courseId || !enabledAgents) return;
+    const isEnabled = enabledAgents[agentKey] ?? true;
+    if (isEnabled) {
+      const agentName =
+        agentCatalog.find((agent) => agent.key === agentKey)?.name ?? "this agent";
+      const shouldRemove = window.confirm(
+        `Are you sure you want to remove ${agentName} from this course?`,
+      );
+      if (!shouldRemove) {
+        return;
+      }
+    }
     const next = {
       ...enabledAgents,
-      [agentKey]: !(enabledAgents[agentKey] ?? true),
+      [agentKey]: !isEnabled,
     };
     setAgentState(next);
     setEnabledAgents(courseId, next);

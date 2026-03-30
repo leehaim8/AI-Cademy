@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   agentCatalog,
   listEnabledAgents,
@@ -29,6 +29,16 @@ export default function CourseSettingsPage() {
 
   function handleToggle(agentKey: string, value: boolean) {
     if (!courseId) return;
+    if (!value) {
+      const agentName =
+        agentCatalog.find((agent) => agent.key === agentKey)?.name ?? "this agent";
+      const shouldRemove = window.confirm(
+        `Are you sure you want to remove ${agentName} from this course?`,
+      );
+      if (!shouldRemove) {
+        return;
+      }
+    }
     const next = { ...enabled, [agentKey]: value };
     setEnabled(next);
     setEnabledAgents(courseId, next);
@@ -132,4 +142,3 @@ export default function CourseSettingsPage() {
     </div>
   );
 }
-
