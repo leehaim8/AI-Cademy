@@ -90,7 +90,7 @@ export default function CourseAgentPage() {
             className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-sky-300"
           >
             <span className="text-sm">←</span>
-            <span>Back to course</span>
+            <span>Back to course agents</span>
           </Link>
         </div>
 
@@ -114,6 +114,12 @@ export default function CourseAgentPage() {
               courseId={courseId}
               agentKey={agentKey}
               onRunSelect={handleRunSelect}
+              showCreate={normalizedKey !== "booklet"}
+              emptyHint={
+                normalizedKey === "booklet"
+                  ? "No sessions yet. Generate a chapter to create one."
+                  : undefined
+              }
             />
           </div>
           <div className="h-full">
@@ -134,7 +140,11 @@ export default function CourseAgentPage() {
             ) : normalizedKey === "evaluation" ? (
               <EvaluationAgentView />
             ) : normalizedKey === "booklet" ? (
-              <BookletAgentView />
+              <BookletAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
+              />
             ) : (
               <CodeReviewAgentView />
             )}

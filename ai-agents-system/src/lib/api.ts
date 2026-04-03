@@ -72,6 +72,37 @@ export type SyllabusGenerationResponse = {
   weeks: SyllabusWeek[];
 };
 
+export type BookletOutlineUnit = {
+  title: string;
+  topics: string[];
+};
+
+export type BookletOutlinePayload = {
+  syllabus_text?: string;
+  weeks?: SyllabusWeek[];
+  course_name?: string;
+};
+
+export type BookletOutlineResponse = {
+  outline: BookletOutlineUnit[];
+  course_map: Record<string, unknown>;
+  source_type?: string | null;
+  course_name?: string | null;
+};
+
+export type BookletChapterPayload = {
+  chapter_name: string;
+  course_map: Record<string, unknown>;
+  output_language?: "Hebrew" | "English";
+  tone?: "Student-friendly" | "Academic" | "Concise";
+};
+
+export type BookletChapterResponse = {
+  chapter_name: string;
+  draft_md: string;
+  final_md: string;
+};
+
 export type TopicExtractionUploadPayload = {
   seminar_topic: string;
   files: File[];
@@ -257,4 +288,58 @@ export async function generateSyllabus(
   }
 
   return (await res.json()) as SyllabusGenerationResponse;
+}
+
+export async function generateBookletOutline(
+  payload: BookletOutlinePayload
+): Promise<BookletOutlineResponse> {
+  const res = await fetch(`${API_BASE_URL}/booklet/outline`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as BookletOutlineResponse;
+}
+
+export async function generateBookletOutlineWithFile(
+  file: File,
+  courseName?: string
+): Promise<BookletOutlineResponse> {
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+  if (courseName?.trim()) {
+    formData.append("course_name", courseName.trim());
+  }
+
+  const res = await fetch(`${API_BASE_URL}/booklet/outline/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as BookletOutlineResponse;
+}
+
+export async function generateBookletChapter(
+  payload: BookletChapterPayload
+): Promise<BookletChapterResponse> {
+  const res = await fetch(`${API_BASE_URL}/booklet/chapter`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as BookletChapterResponse;
 }

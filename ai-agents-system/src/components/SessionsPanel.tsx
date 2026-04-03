@@ -12,12 +12,16 @@ type SessionsPanelProps = {
   courseId: string;
   agentKey: string;
   onRunSelect?: (run: SessionRun | null) => void;
+  showCreate?: boolean;
+  emptyHint?: string;
 };
 
 export default function SessionsPanel({
   courseId,
   agentKey,
   onRunSelect,
+  showCreate = true,
+  emptyHint,
 }: SessionsPanelProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
@@ -108,7 +112,7 @@ export default function SessionsPanel({
         <div className="mt-4 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
           {sessions.length === 0 ? (
             <p className="text-xs text-slate-400">
-              No sessions yet. Create one to start.
+              {emptyHint ?? "No sessions yet. Create one to start."}
             </p>
           ) : (
             sessions.map((session) => (
@@ -187,31 +191,33 @@ export default function SessionsPanel({
         </div>
       </div>
 
-      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
-        <h3 className="text-sm font-semibold text-slate-100">New session</h3>
-        <div className="mt-3 flex h-[calc(100%-1.75rem)] flex-col gap-3">
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Session title"
-            className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-          />
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Notes (optional)"
-            rows={3}
-            className="min-h-[8rem] flex-1 rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-          />
-          <button
-            type="button"
-            onClick={handleCreateSession}
-            className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-white"
-          >
-            Create session
-          </button>
+      {showCreate ? (
+        <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
+          <h3 className="text-sm font-semibold text-slate-100">New session</h3>
+          <div className="mt-3 flex h-[calc(100%-1.75rem)] flex-col gap-3">
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Session title"
+              className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
+            />
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Notes (optional)"
+              rows={3}
+              className="min-h-[8rem] flex-1 rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
+            />
+            <button
+              type="button"
+              onClick={handleCreateSession}
+              className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-white"
+            >
+              Create session
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <div>

@@ -1,41 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import jsPDF from "jspdf";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  generateBookletChapter,
+  generateBookletOutline,
+  generateBookletOutlineWithFile,
+  type BookletOutlineUnit,
+  type SyllabusWeek,
+} from "../../lib/api";
 import { getCourse } from "../../lib/courseStore";
-import type { SyllabusWeek } from "../../lib/api";
+import { createRun, createSession } from "../../lib/sessionStore";
+import type { SessionRun } from "../../types/course";
 
 type BookletConfig = {
   courseName: string;
   courseNumber?: string;
-  sourceType: "Syllabus" | "Slides" | "Both";
   outputLanguage: "Hebrew" | "English";
   tone: "Student-friendly" | "Academic" | "Concise";
-  useRag: boolean;
 };
 
-type CourseOutline = {
-  units: Array<{
-    title: string;
-    topics: string[];
-  }>;
-};
-
-type BookletDraft = {
-  sections: Array<{
-    id: string;
-    title: string;
-    topicOverview: string;
-    keyTerms: string[];
-    miniActivity: string;
-    summary: string;
-  }>;
-};
-
-type RunLogItem = {
+type BookletChapter = {
   id: string;
-  timestamp: string;
-  status: "info" | "success" | "warning" | "error";
-  message: string;
+  title: string;
+  draftMd: string;
+  finalMd: string;
+  createdAt: string;
 };
 
 type AgentState =
@@ -46,7 +36,7 @@ type AgentState =
   | "draft_ready"
   | "error";
 
-type TabKey = "outline" | "draft" | "export";
+type TabKey = "outline" | "chapter" | "export";
 
 type BookletLocationState = {
   fromSyllabusAgent?: boolean;
@@ -59,105 +49,47 @@ type BookletLocationState = {
 const defaultConfig: BookletConfig = {
   courseName: "",
   courseNumber: "",
-  sourceType: "Both",
-  outputLanguage: "Hebrew",
-  tone: "Student-friendly",
-  useRag: true,
+  outputLanguage: "English",
+  tone: "Academic",
 };
 
-const mockGenerateOutline = async (
-  config: BookletConfig,
-  files: File[],
-): Promise<CourseOutline> => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  const hasFiles = files.length > 0;
-  const baseTitle = config.courseName || "Course Booklet";
-
-  return {
-    units: [
-      {
-        title: `Unit 1: Foundations of ${baseTitle}`,
-        topics: [
-          hasFiles ? "Syllabus framing" : "Course goals",
-          "Key vocabulary",
-          "Learning outcomes",
-        ],
-      },
-      {
-        title: "Unit 2: Core Concepts",
-        topics: ["Concept map", "Worked examples", "Mini quiz"],
-      },
-      {
-        title: "Unit 3: Practice + Synthesis",
-        topics: ["Case study", "Student activity", "Reflection prompts"],
-      },
-    ],
-  };
+type BookletAgentViewProps = {
+  selectedRun?: SessionRun | null;
+  onClearSelectedRun?: () => void;
+  clearSelectionVersion?: number;
 };
 
-const mockGenerateDraft = async (
-  config: BookletConfig,
-  outline: CourseOutline,
-): Promise<BookletDraft> => {
-  await new Promise((resolve) => setTimeout(resolve, 1200));
-
-  const sections = [
-    {
-      id: "intro",
-      title: "Introduction",
-      topicOverview: `Welcome to ${config.courseName || "this course"}! This booklet explains the flow of the course and how to prepare.`,
-      keyTerms: ["Learning objectives", "Assessment", "Resources"],
-      miniActivity: "Write down two questions you want answered by the end of the course.",
-      summary: "You now have a roadmap and a clear starting point.",
-    },
-  ];
-
-  outline.units.forEach((unit, index) => {
-    sections.push({
-      id: `unit-${index + 1}`,
-      title: unit.title,
-      topicOverview: `This unit focuses on ${unit.topics.join(", ").toLowerCase()}.`,
-      keyTerms: unit.topics.slice(0, 3),
-      miniActivity: "Summarize the most important idea in one sentence.",
-      summary: "You can now connect the concepts to practical scenarios.",
-    });
-  });
-
-  return { sections };
-};
-
-const mockExport = async (
-  type: "pdf" | "docx",
-  draft: BookletDraft | null,
-): Promise<string> => {
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  const baseName = draft ? "course-booklet" : "booklet";
-  return `${baseName}.${type}`;
-};
-
-function outlineFromSyllabus(weeks: SyllabusWeek[]): CourseOutline {
-  return {
-    units: weeks.map((week) => ({
-      title: `Week ${week.week}: ${week.central_topic}`,
-      topics: week.topics.length > 0 ? week.topics : ["No topics assigned"],
-    })),
-  };
+function outlineFromSyllabus(weeks: SyllabusWeek[]): BookletOutlineUnit[] {
+  return weeks.map((week) => ({
+    title: `Week ${week.week}: ${week.central_topic}`,
+    topics: week.topics.length > 0 ? week.topics : ["No topics assigned"],
+  }));
 }
 
-export default function BookletAgentView() {
-  const { courseId = "" } = useParams();
+export default function BookletAgentView({
+  selectedRun = null,
+  onClearSelectedRun,
+  clearSelectionVersion = 0,
+}: BookletAgentViewProps) {
+  const { courseId = "", agentKey = "", id = "" } = useParams();
+  const navigate = useNavigate();
   const location = useLocation() as { state?: BookletLocationState };
   const course = courseId ? getCourse(courseId) : null;
   const [config, setConfig] = useState<BookletConfig>(defaultConfig);
   const [files, setFiles] = useState<File[]>([]);
-  const [outline, setOutline] = useState<CourseOutline | null>(null);
-  const [draft, setDraft] = useState<BookletDraft | null>(null);
+  const [syllabusText, setSyllabusText] = useState<string>("");
+  const [outline, setOutline] = useState<BookletOutlineUnit[]>([]);
+  const [courseMap, setCourseMap] = useState<Record<string, unknown> | null>(null);
+  const [chapters, setChapters] = useState<BookletChapter[]>([]);
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("idle");
   const [activeTab, setActiveTab] = useState<TabKey>("outline");
-  const [, setRunLog] = useState<RunLogItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [exporting, setExporting] = useState<null | "pdf" | "docx">(null);
+  const [outlineError, setOutlineError] = useState<string | null>(null);
+  const [chapterError, setChapterError] = useState<string | null>(null);
+  const [selectedChapter, setSelectedChapter] = useState<string>("");
+  const activeAgentKey = agentKey || id || "booklet";
+  const didInitReset = useRef(false);
 
   const importedWeeks = useMemo(
     () =>
@@ -183,76 +115,144 @@ export default function BookletAgentView() {
     return 0;
   }, [agentState]);
 
-  const addLog = (status: RunLogItem["status"], message: string) => {
-    setRunLog((prev) => [
-      {
-        id: crypto.randomUUID(),
-        timestamp: new Date().toLocaleTimeString(),
-        status,
-        message,
-      },
-      ...prev,
-    ]);
-  };
+  const activeChapter = useMemo(
+    () => chapters.find((chapter) => chapter.id === activeChapterId) ?? null,
+    [activeChapterId, chapters],
+  );
 
   const handleGenerateOutline = async () => {
     setErrorMessage(null);
+    setOutlineError(null);
     setAgentState("ingesting");
-    addLog("info", "Ingesting source material");
 
     try {
-      const outlineResult = await mockGenerateOutline(config, files);
-      setOutline(outlineResult);
+      let response;
+      if (files.length > 0) {
+        response = await generateBookletOutlineWithFile(
+          files[0],
+          config.courseName,
+        );
+      } else if (syllabusText.trim()) {
+        response = await generateBookletOutline({
+          syllabus_text: syllabusText.trim(),
+          course_name: config.courseName,
+        });
+      } else if (importedWeeks.length > 0) {
+        response = await generateBookletOutline({
+          weeks: importedWeeks,
+          course_name: config.courseName,
+        });
+      } else {
+        throw new Error(
+          "Add a syllabus file, paste syllabus text, or import weeks from the Syllabus Builder.",
+        );
+      }
+
+      setOutline(response.outline ?? []);
+      setCourseMap(response.course_map ?? null);
       setAgentState("outline_ready");
       setActiveTab("outline");
-      addLog("success", "Outline generated");
-    } catch {
+      setSelectedChapter(
+        response.outline?.[0]?.title ?? selectedChapter ?? "",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to generate outline.";
       setAgentState("error");
-      setErrorMessage("Failed to generate outline. Please retry.");
-      addLog("error", "Outline generation failed");
+      setOutlineError(message);
+      setErrorMessage(message);
     }
   };
 
-  const handleGenerateDraft = async () => {
-    if (!outline) return;
-    setErrorMessage(null);
+  const handleGenerateChapter = async () => {
+    if (!courseMap) {
+      setChapterError("Generate an outline first so the course map is ready.");
+      return;
+    }
+    if (!selectedChapter) {
+      setChapterError("Select a chapter from the outline.");
+      return;
+    }
+
+    setChapterError(null);
     setAgentState("drafting");
-    setActiveTab("draft");
-    addLog("info", "Generating draft sections");
+    setActiveTab("chapter");
 
     try {
-      const draftResult = await mockGenerateDraft(config, outline);
-      setDraft(draftResult);
+      const result = await generateBookletChapter({
+        chapter_name: selectedChapter,
+        course_map: courseMap,
+        output_language: config.outputLanguage,
+        tone: config.tone,
+      });
+      const chapter: BookletChapter = {
+        id: crypto.randomUUID(),
+        title: result.chapter_name,
+        draftMd: result.draft_md,
+        finalMd: result.final_md,
+        createdAt: new Date().toLocaleTimeString(),
+      };
+      setChapters((prev) => [chapter, ...prev]);
+      setActiveChapterId(chapter.id);
       setAgentState("draft_ready");
-      addLog("success", "Draft sections generated");
-    } catch {
-      setAgentState("error");
-      setErrorMessage("Failed to generate draft. Please retry.");
-      addLog("error", "Draft generation failed");
-    }
-  };
 
-  const handleExport = async (type: "pdf" | "docx") => {
-    setExporting(type);
-    try {
-      const filename = await mockExport(type, draft);
-      addLog("success", `Export prepared: ${filename}`);
-    } catch {
-      addLog("error", "Export failed");
-    } finally {
-      setExporting(null);
+      if (courseId) {
+        const sessionTitle = `Chapter: ${result.chapter_name}`;
+        const notes = [
+          config.courseName ? `Course: ${config.courseName}` : "",
+          `Language: ${config.outputLanguage}`,
+          `Tone: ${config.tone}`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const session = createSession(courseId, activeAgentKey, sessionTitle, notes);
+        createRun(
+          session.id,
+          {
+            course_name: config.courseName || undefined,
+            chapter_name: result.chapter_name,
+            output_language: config.outputLanguage,
+            tone: config.tone,
+            source: files.length
+              ? "upload"
+              : syllabusText.trim()
+                ? "text"
+                : importedWeeks.length
+                  ? "weeks"
+                  : "unknown",
+            outline,
+          },
+          {
+            chapter_title: result.chapter_name,
+            draft_md: result.draft_md,
+            final_md: result.final_md,
+            course_map: courseMap,
+          },
+          "success",
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to generate chapter.";
+      setAgentState("error");
+      setChapterError(message);
     }
   };
 
   const handleReset = () => {
     setConfig(defaultConfig);
     setFiles([]);
-    setOutline(null);
-    setDraft(null);
+    setSyllabusText("");
+    setOutline([]);
+    setCourseMap(null);
+    setChapters([]);
+    setActiveChapterId(null);
     setAgentState("idle");
     setActiveTab("outline");
-    setRunLog([]);
     setErrorMessage(null);
+    setOutlineError(null);
+    setChapterError(null);
+    setSelectedChapter("");
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -269,14 +269,57 @@ export default function BookletAgentView() {
   const handleCopy = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content);
-      addLog("success", "Section copied to clipboard");
     } catch {
-      addLog("warning", "Clipboard copy failed");
+      setErrorMessage("Clipboard copy failed.");
     }
   };
 
-  const outlineReady = agentState === "outline_ready" || agentState === "drafting" || agentState === "draft_ready";
-  const draftReady = agentState === "draft_ready";
+  const handleSendToHomework = (chapter: BookletChapter) => {
+    const chapterText = chapter.finalMd || chapter.draftMd;
+    navigate(
+      courseId ? `/courses/${courseId}/agents/homework` : "/agent/homework",
+      {
+        state: {
+          fromBookletAgent: true,
+          chapterText,
+          chapterTitle: chapter.title,
+        },
+      },
+    );
+  };
+
+  const handleDownloadPdf = (chapter: BookletChapter) => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const marginLeft = 48;
+    const marginTop = 54;
+    const lineHeight = 16;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - marginLeft * 2;
+    let y = marginTop;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text(chapter.title, marginLeft, y);
+    y += lineHeight * 1.8;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    const content = (chapter.finalMd || chapter.draftMd).replace(/\r\n/g, "\n");
+    const lines = doc.splitTextToSize(content, contentWidth);
+
+    lines.forEach((line: string) => {
+      if (y > pageHeight - marginTop) {
+        doc.addPage();
+        y = marginTop;
+      }
+      doc.text(line, marginLeft, y);
+      y += lineHeight;
+    });
+
+    const safeName = chapter.title.replace(/[^a-z0-9_\-]+/gi, "-").slice(0, 80);
+    doc.save(`${safeName || "chapter"}.pdf`);
+  };
 
   useEffect(() => {
     if (!location.state?.fromSyllabusAgent || importedWeeks.length === 0) {
@@ -286,29 +329,109 @@ export default function BookletAgentView() {
     setConfig((prev) => ({
       ...prev,
       courseName: prev.courseName || course?.name || "",
-      sourceType: "Syllabus",
     }));
     setFiles([]);
     setOutline(outlineFromSyllabus(importedWeeks));
-    setDraft(null);
+    setCourseMap(null);
     setAgentState("outline_ready");
     setActiveTab("outline");
+    setOutlineError(null);
     setErrorMessage(null);
-    setRunLog((prev) => {
-      if (prev.some((entry) => entry.message === "Imported syllabus from Syllabus Builder")) {
-        return prev;
-      }
-      return [
-        {
-          id: crypto.randomUUID(),
-          timestamp: new Date().toLocaleTimeString(),
-          status: "success",
-          message: "Imported syllabus from Syllabus Builder",
-        },
-        ...prev,
-      ];
-    });
   }, [course?.name, importedWeeks, location.state]);
+
+  useEffect(() => {
+    if (!selectedChapter && outline.length > 0) {
+      setSelectedChapter(outline[0].title);
+    }
+  }, [outline, selectedChapter]);
+
+  useEffect(() => {
+    if (!selectedRun) {
+      return;
+    }
+
+    const inputData =
+      selectedRun.input_data && typeof selectedRun.input_data === "object"
+        ? (selectedRun.input_data as {
+            course_name?: string;
+            chapter_name?: string;
+            output_language?: string;
+            tone?: string;
+            outline?: BookletOutlineUnit[];
+          })
+        : null;
+
+    const outputData =
+      selectedRun.output_data && typeof selectedRun.output_data === "object"
+        ? (selectedRun.output_data as {
+            chapter_title?: string;
+            draft_md?: string;
+            final_md?: string;
+            course_map?: Record<string, unknown>;
+          })
+        : null;
+
+    if (typeof inputData?.course_name === "string") {
+      setConfig((prev) => ({ ...prev, courseName: inputData.course_name || "" }));
+    }
+    if (typeof inputData?.output_language === "string") {
+      setConfig((prev) => ({
+        ...prev,
+        outputLanguage: inputData.output_language as BookletConfig["outputLanguage"],
+      }));
+    }
+    if (typeof inputData?.tone === "string") {
+      setConfig((prev) => ({
+        ...prev,
+        tone: inputData.tone as BookletConfig["tone"],
+      }));
+    }
+    if (Array.isArray(inputData?.outline)) {
+      setOutline(inputData.outline);
+    }
+
+    if (outputData?.course_map) {
+      setCourseMap(outputData.course_map);
+    }
+
+    if (outputData?.final_md || outputData?.draft_md) {
+      const chapterTitle =
+        outputData.chapter_title || inputData?.chapter_name || "Chapter";
+      const chapter: BookletChapter = {
+        id: crypto.randomUUID(),
+        title: chapterTitle,
+        draftMd: outputData.draft_md || "",
+        finalMd: outputData.final_md || "",
+        createdAt: new Date(selectedRun.created_at).toLocaleTimeString(),
+      };
+      setChapters([chapter]);
+      setActiveChapterId(chapter.id);
+      setAgentState("draft_ready");
+      setActiveTab("chapter");
+    }
+  }, [selectedRun]);
+
+  useEffect(() => {
+    if (!didInitReset.current) {
+      didInitReset.current = true;
+      return;
+    }
+
+    setConfig(defaultConfig);
+    setFiles([]);
+    setSyllabusText("");
+    setOutline([]);
+    setCourseMap(null);
+    setChapters([]);
+    setActiveChapterId(null);
+    setAgentState("idle");
+    setActiveTab("outline");
+    setErrorMessage(null);
+    setOutlineError(null);
+    setChapterError(null);
+    setSelectedChapter("");
+    onClearSelectedRun?.();
+  }, [clearSelectionVersion]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -316,22 +439,26 @@ export default function BookletAgentView() {
         <div className="flex flex-col gap-6">
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
             <div className="flex flex-col gap-2">
-              <h2 className="text-lg font-semibold text-slate-100">Course Booklet Agent</h2>
+              <h2 className="text-lg font-semibold text-slate-100">
+                Course Booklet Generator
+              </h2>
               <p className="text-sm text-slate-300">
-                Builds a coherent course booklet from syllabus and slides (outline → sections → export).
+                Generate structured chapters from your syllabus, then send them
+                to the Homework Generator.
               </p>
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-              <div className="flex flex-col gap-4">
-                <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
 
               {importedWeeks.length > 0 ? (
                 <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-xs text-violet-100">
                   <p className="font-semibold">Imported from Syllabus Builder</p>
                   <p className="mt-1 text-violet-200/90">
-                    Loaded {importedWeeks.length} weeks and {importedTopics.length} topics into the booklet outline.
+                    Loaded {importedWeeks.length} weeks and {importedTopics.length}{" "}
+                    topics into the outline preview.
                   </p>
                 </div>
               ) : null}
@@ -342,7 +469,10 @@ export default function BookletAgentView() {
                   <input
                     value={config.courseName}
                     onChange={(event) =>
-                      setConfig((prev) => ({ ...prev, courseName: event.target.value }))
+                      setConfig((prev) => ({
+                        ...prev,
+                        courseName: event.target.value,
+                      }))
                     }
                     placeholder="Intro to AI"
                     className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
@@ -353,7 +483,10 @@ export default function BookletAgentView() {
                   <input
                     value={config.courseNumber}
                     onChange={(event) =>
-                      setConfig((prev) => ({ ...prev, courseNumber: event.target.value }))
+                      setConfig((prev) => ({
+                        ...prev,
+                        courseNumber: event.target.value,
+                      }))
                     }
                     placeholder="CS-340"
                     className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
@@ -363,30 +496,14 @@ export default function BookletAgentView() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                  Source type
-                  <select
-                    value={config.sourceType}
-                    onChange={(event) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        sourceType: event.target.value as BookletConfig["sourceType"],
-                      }))
-                    }
-                    className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  >
-                    <option value="Syllabus">Syllabus</option>
-                    <option value="Slides">Slides</option>
-                    <option value="Both">Both</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
                   Output language
                   <select
                     value={config.outputLanguage}
                     onChange={(event) =>
                       setConfig((prev) => ({
                         ...prev,
-                        outputLanguage: event.target.value as BookletConfig["outputLanguage"],
+                        outputLanguage: event.target
+                          .value as BookletConfig["outputLanguage"],
                       }))
                     }
                     className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
@@ -395,9 +512,6 @@ export default function BookletAgentView() {
                     <option value="English">English</option>
                   </select>
                 </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
                   Tone
                   <select
@@ -415,24 +529,20 @@ export default function BookletAgentView() {
                     <option value="Concise">Concise</option>
                   </select>
                 </label>
-                <div className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                  Use RAG (recommended)
-                  <label className="flex items-center gap-3 rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100">
-                    <input
-                      type="checkbox"
-                      checked={config.useRag}
-                      onChange={(event) =>
-                        setConfig((prev) => ({ ...prev, useRag: event.target.checked }))
-                      }
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-slate-200"
-                    />
-                    <span>{config.useRag ? "Enabled" : "Disabled"}</span>
-                  </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-sky-400/60 bg-sky-500/10 px-3 py-2 text-xs text-sky-100 md:col-span-2">
+                  <p className="text-sky-100 font-semibold">Syllabus sources</p>
+                  <p className="mt-1 text-sky-100/90">
+                    Use weeks from the Syllabus Builder, upload a file, or paste
+                    the syllabus text.
+                  </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                Upload sources
+                Upload syllabus
                 <div
                   onDrop={handleDrop}
                   onDragOver={(event) => event.preventDefault()}
@@ -441,11 +551,10 @@ export default function BookletAgentView() {
                   <label className="flex cursor-pointer flex-col gap-2">
                     <input
                       type="file"
-                      multiple
                       onChange={handleFileChange}
                       className="hidden"
                     />
-                    <span>Drag & drop files or click to browse.</span>
+                    <span>Drag and drop a syllabus file or click to browse.</span>
                     {files.length > 0 ? (
                       <div className="flex flex-col gap-1 text-xs text-slate-300">
                         {files.map((file) => (
@@ -456,24 +565,26 @@ export default function BookletAgentView() {
                       </div>
                     ) : (
                       <span className="text-xs text-slate-500">
-                        Accepted: PDF, PPTX, DOCX (mocked)
+                        Accepted: PDF, DOCX, TXT, MD
                       </span>
                     )}
                   </label>
                 </div>
               </div>
 
-              {errorMessage ? (
+              <div className="flex flex-col gap-2 text-xs font-medium text-slate-300">
+                Or paste syllabus text
+                <textarea
+                  value={syllabusText}
+                  onChange={(event) => setSyllabusText(event.target.value)}
+                  placeholder="Week 1: Central Topic: ... "
+                  className="min-h-[120px] w-full resize-y rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-slate-500"
+                />
+              </div>
+
+              {outlineError ? (
                 <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{errorMessage}</span>
-                    <button
-                      onClick={handleGenerateOutline}
-                      className="rounded-lg border border-rose-400/60 px-2 py-1 text-xs text-rose-100 hover:border-rose-300"
-                    >
-                      Retry
-                    </button>
-                  </div>
+                  {outlineError}
                 </div>
               ) : null}
 
@@ -484,13 +595,6 @@ export default function BookletAgentView() {
                   disabled={agentState === "ingesting" || agentState === "drafting"}
                 >
                   {agentState === "ingesting" ? "Generating..." : "Generate outline"}
-                </button>
-                <button
-                  onClick={handleGenerateDraft}
-                  disabled={!outlineReady || agentState === "drafting"}
-                  className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {agentState === "drafting" ? "Drafting..." : "Generate booklet sections"}
                 </button>
                 <button
                   onClick={handleReset}
@@ -504,12 +608,58 @@ export default function BookletAgentView() {
 
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
             <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-semibold text-slate-100">
+                Chapter generation
+              </h3>
+              <div className="flex flex-col gap-2 text-xs font-medium text-slate-300">
+                Select chapter
+                <select
+                  value={selectedChapter}
+                  onChange={(event) => setSelectedChapter(event.target.value)}
+                  className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
+                  disabled={outline.length === 0}
+                >
+                  {outline.length === 0 ? (
+                    <option value="">Generate an outline first</option>
+                  ) : (
+                    outline.map((unit) => (
+                      <option key={unit.title} value={unit.title}>
+                        {unit.title}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {chapterError ? (
+                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  {chapterError}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleGenerateChapter}
+                  disabled={outline.length === 0 || agentState === "drafting"}
+                  className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {agentState === "drafting" ? "Drafting..." : "Generate chapter"}
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  Output language: {config.outputLanguage} · Tone: {config.tone}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+            <div className="flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-slate-100">Progress</h3>
               <div className="flex flex-col gap-3 text-xs text-slate-300">
                 {[
-                  { label: "1. Ingest & Extract", index: 1 },
+                  { label: "1. Ingest & Map", index: 1 },
                   { label: "2. Outline", index: 2 },
-                  { label: "3. Booklet Draft + Export", index: 3 },
+                  { label: "3. Chapter Draft", index: 3 },
                 ].map((step) => (
                   <div
                     key={step.label}
@@ -539,7 +689,7 @@ export default function BookletAgentView() {
               <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
                 {[
                   { key: "outline", label: "Outline" },
-                  { key: "draft", label: "Booklet Draft" },
+                  { key: "chapter", label: "Chapter Draft" },
                   { key: "export", label: "Export" },
                 ].map((tab) => (
                   <button
@@ -564,13 +714,21 @@ export default function BookletAgentView() {
                       <div className="h-3 w-full animate-pulse rounded bg-slate-800/60" />
                       <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800/60" />
                     </div>
-                  ) : outline ? (
-                    outline.units.map((unit) => (
-                      <div key={unit.title} className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">
-                        <h4 className="text-sm font-semibold text-slate-100">{unit.title}</h4>
+                  ) : outline.length > 0 ? (
+                    outline.map((unit) => (
+                      <div
+                        key={unit.title}
+                        className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3"
+                      >
+                        <h4 className="text-sm font-semibold text-slate-100">
+                          {unit.title}
+                        </h4>
                         <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-300">
                           {unit.topics.map((topic) => (
-                            <li key={topic}>• {topic}</li>
+                            <li key={topic} className="flex items-start gap-2">
+                              <span className="mt-[5px] h-1.5 w-1.5 rounded-full bg-slate-500" />
+                              <span>{topic}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -583,7 +741,7 @@ export default function BookletAgentView() {
                 </div>
               ) : null}
 
-              {activeTab === "draft" ? (
+              {activeTab === "chapter" ? (
                 <div className="flex flex-col gap-3">
                   {agentState === "drafting" ? (
                     <div className="space-y-3">
@@ -591,50 +749,64 @@ export default function BookletAgentView() {
                       <div className="h-20 w-full animate-pulse rounded bg-slate-800/60" />
                       <div className="h-20 w-full animate-pulse rounded bg-slate-800/60" />
                     </div>
-                  ) : draft ? (
-                    draft.sections.map((section) => (
-                      <div
-                        key={section.id}
-                        className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3 text-xs text-slate-200"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <h4 className="text-sm font-semibold text-slate-100">{section.title}</h4>
+                  ) : activeChapter ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-slate-100">
+                            {activeChapter.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-400">
+                            Generated at {activeChapter.createdAt}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() =>
                               handleCopy(
-                                [
-                                  section.title,
-                                  section.topicOverview,
-                                  `Key terms: ${section.keyTerms.join(", ")}`,
-                                  `Activity: ${section.miniActivity}`,
-                                  `Summary: ${section.summary}`,
-                                ].join("\n"),
+                                activeChapter.finalMd || activeChapter.draftMd,
                               )
                             }
                             className="rounded-lg border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:border-slate-500"
                           >
                             Copy
                           </button>
-                        </div>
-                        <p className="mt-2 text-slate-300">{section.topicOverview}</p>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
-                          {section.keyTerms.map((term) => (
-                            <span key={term} className="rounded-full border border-slate-700 px-2 py-0.5">
-                              {term}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="mt-2 text-[11px] text-slate-300">
-                          <span className="font-semibold text-slate-100">Mini activity:</span> {section.miniActivity}
-                        </div>
-                        <div className="mt-1 text-[11px] text-slate-300">
-                          <span className="font-semibold text-slate-100">Summary:</span> {section.summary}
+                          <button
+                            onClick={() => handleSendToHomework(activeChapter)}
+                            className="rounded-lg border border-emerald-500/60 px-2 py-1 text-[11px] text-emerald-200 hover:border-emerald-400"
+                          >
+                            Send to Homework Generator
+                          </button>
                         </div>
                       </div>
-                    ))
+
+                      <div className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3 text-xs text-slate-200">
+                        <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-slate-200">
+                          {activeChapter.finalMd || activeChapter.draftMd}
+                        </pre>
+                      </div>
+
+                      {chapters.length > 1 ? (
+                        <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+                          {chapters.map((chapter) => (
+                            <button
+                              key={chapter.id}
+                              onClick={() => setActiveChapterId(chapter.id)}
+                              className={`rounded-full border px-3 py-1 ${
+                                chapter.id === activeChapterId
+                                  ? "border-slate-200 bg-slate-200 text-slate-900"
+                                  : "border-slate-700 text-slate-300 hover:border-slate-500"
+                              }`}
+                            >
+                              {chapter.title}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <p className="text-xs text-slate-400">
-                      Generate draft sections after the outline is ready.
+                      Generate a chapter after the outline is ready.
                     </p>
                   )}
                 </div>
@@ -642,29 +814,35 @@ export default function BookletAgentView() {
 
               {activeTab === "export" ? (
                 <div className="flex flex-col gap-3 text-xs text-slate-300">
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => handleExport("pdf")}
-                      disabled={!draftReady || exporting !== null}
-                      className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {exporting === "pdf" ? "Preparing..." : "Download as PDF (mock)"}
-                    </button>
-                    <button
-                      onClick={() => handleExport("docx")}
-                      disabled={!draftReady || exporting !== null}
-                      className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {exporting === "docx" ? "Preparing..." : "Download as DOCX (mock)"}
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Export is mocked for now — wiring will come later.
-                  </p>
+                  {activeChapter ? (
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => handleDownloadPdf(activeChapter)}
+                        className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:border-slate-500"
+                      >
+                        Download PDF
+                      </button>
+                      <button
+                        onClick={() => handleSendToHomework(activeChapter)}
+                        className="rounded-xl border border-emerald-500/60 px-4 py-2 text-sm text-emerald-200 hover:border-emerald-400"
+                      >
+                        Send to Homework Generator
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">
+                      Export will be available after chapter generation.
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
           </div>
+          {errorMessage ? (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {errorMessage}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

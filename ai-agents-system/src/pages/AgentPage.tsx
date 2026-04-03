@@ -34,7 +34,7 @@ const agentRegistry = {
   booklet: {
     title: "Course Booklet Generator",
     description:
-      "Draft a cohesive booklet from your course units, summaries and activities.",
+      "Generate syllabus-aligned chapters and booklet drafts.",
     Component: BookletAgentView,
   },
   "code-review": {

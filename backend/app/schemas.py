@@ -123,3 +123,34 @@ class SyllabusWeekOut(BaseModel):
 
 class SyllabusGenerationResponse(BaseModel):
     weeks: list[SyllabusWeekOut]
+
+
+class BookletOutlineRequest(BaseModel):
+    syllabus_text: Optional[str] = Field(default=None, max_length=200_000)
+    weeks: Optional[list[SyllabusWeekOut]] = None
+    course_name: Optional[str] = Field(default=None, max_length=200)
+
+
+class BookletOutlineUnit(BaseModel):
+    title: str
+    topics: list[str]
+
+
+class BookletOutlineResponse(BaseModel):
+    outline: list[BookletOutlineUnit]
+    course_map: Any
+    source_type: Optional[str] = None
+    course_name: Optional[str] = None
+
+
+class BookletChapterRequest(BaseModel):
+    chapter_name: str = Field(min_length=1, max_length=200)
+    course_map: Any
+    output_language: str = Field(default="English", max_length=50)
+    tone: str = Field(default="Academic", max_length=50)
+
+
+class BookletChapterResponse(BaseModel):
+    chapter_name: str
+    draft_md: str
+    final_md: str

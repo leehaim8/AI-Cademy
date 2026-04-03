@@ -1,4 +1,5 @@
-import { useMemo, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
+import { useLocation } from "react-router-dom";
 
 type QuestionType = "mcq" | "open";
 
@@ -66,6 +67,13 @@ function mockGenerateQuestions(
 }
 
 export default function HomeworkAgentView() {
+  const location = useLocation() as {
+    state?: {
+      fromBookletAgent?: boolean;
+      chapterText?: string;
+      chapterTitle?: string;
+    };
+  };
   const [chapterSource, setChapterSource] = useState<string>("");
   const [mcqCount, setMcqCount] = useState(3);
   const [openCount, setOpenCount] = useState(0);
@@ -76,6 +84,21 @@ export default function HomeworkAgentView() {
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const importedChapter = useMemo(() => {
+    if (!location.state?.fromBookletAgent) return null;
+    const text = location.state.chapterText?.trim();
+    if (!text) return null;
+    return {
+      text,
+      title: location.state.chapterTitle?.trim() || "Imported chapter",
+    };
+  }, [location.state]);
+
+  useEffect(() => {
+    if (importedChapter) {
+      setChapterSource(importedChapter.text);
+    }
+  }, [importedChapter]);
 
   const totalPoints = useMemo(
     () => questions.reduce((sum, q) => sum + q.points, 0),
@@ -132,6 +155,11 @@ export default function HomeworkAgentView() {
             <p className="mb-1 text-[11px] font-semibold text-slate-200">
               Source chapter / booklet
             </p>
+            {importedChapter ? (
+              <div className="mb-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-200">
+                Imported from Course Booklet Generator: {importedChapter.title}
+              </div>
+            ) : null}
             <textarea
               value={chapterSource}
               onChange={(ev) => setChapterSource(ev.target.value)}

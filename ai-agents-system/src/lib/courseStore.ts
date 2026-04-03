@@ -34,7 +34,7 @@ export const agentCatalog: AgentCatalogItem[] = [
   {
     key: "booklet",
     name: "Course Booklet Generator",
-    description: "Creates a full course booklet.",
+    description: "Generates syllabus-aligned chapters and booklet drafts.",
   },
   {
     key: "code_review",

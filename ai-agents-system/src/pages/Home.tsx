@@ -38,7 +38,7 @@ const agents = [
   {
     id: "booklet",
     title: "Course Booklet Generator",
-    description: "Creates a full course booklet.",
+    description: "Generate syllabus-aligned chapters and booklet drafts.",
     emoji: "📘",
   },
   {
