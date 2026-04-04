@@ -71,6 +71,8 @@ export default function TopicAgentView({
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
   const [view, setView] = useState<"suggested" | "review">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
+  const seminarTopicError =
+    errorMessage === "Please enter a seminar topic before extracting topics.";
 
   const allTopicsApproved =
     reviewTopics.length > 0 && reviewTopics.every((topic) => topic.approved);
@@ -141,6 +143,13 @@ export default function TopicAgentView({
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!seminarTopic.trim()) {
+      setHasSubmitted(true);
+      setErrorMessage("Please enter a seminar topic before extracting topics.");
+      setSaveMessage(null);
+      return;
+    }
+
     const hasTextInput = !!text.trim();
     const hasFileInput = uploadedFiles.length > 0;
     if (inputMode === "text" && !hasTextInput) return;
@@ -396,7 +405,11 @@ export default function TopicAgentView({
           value={seminarTopic}
           onChange={(e) => setSeminarTopic(e.target.value)}
           placeholder="Seminar topic"
-          className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+          className={`w-full rounded-xl border bg-slate-950/60 px-3 py-2 text-sm text-slate-100 shadow-inner placeholder:text-slate-500 focus:outline-none focus:ring-1 ${
+            seminarTopicError
+              ? "border-rose-500/70 focus:border-rose-400 focus:ring-rose-500/40"
+              : "border-slate-800 focus:border-sky-500 focus:ring-sky-500/70"
+          }`}
         />
 
         {inputMode === "text" ? (
@@ -494,7 +507,6 @@ export default function TopicAgentView({
           <button
             type="submit"
             disabled={
-              !seminarTopic.trim() ||
               (inputMode === "text" && !text.trim()) ||
               (inputMode === "file" && !uploadedFiles.length && !text.trim()) ||
               isAnalyzing
@@ -570,7 +582,9 @@ export default function TopicAgentView({
               <span>Analyzing topics...</span>
             </div>
           ) : errorMessage ? (
-            <p className="text-xs text-rose-300">{errorMessage}</p>
+            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {errorMessage}
+            </div>
           ) : topics.length === 0 ? (
             <p className="text-xs text-amber-300">
               No topics were returned. Try a longer passage or a different

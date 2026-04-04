@@ -9,6 +9,10 @@ import {
   type BookletOutlineUnit,
   type SyllabusWeek,
 } from "../../lib/api";
+import {
+  clearBookletTransfer,
+  loadBookletTransfer,
+} from "../../lib/agentTransferStore";
 import { getCourse } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
@@ -55,7 +59,6 @@ const defaultConfig: BookletConfig = {
 
 type BookletAgentViewProps = {
   selectedRun?: SessionRun | null;
-  onClearSelectedRun?: () => void;
   clearSelectionVersion?: number;
 };
 
@@ -68,7 +71,6 @@ function outlineFromSyllabus(weeks: SyllabusWeek[]): BookletOutlineUnit[] {
 
 export default function BookletAgentView({
   selectedRun = null,
-  onClearSelectedRun,
   clearSelectionVersion = 0,
 }: BookletAgentViewProps) {
   const { courseId = "", agentKey = "", id = "" } = useParams();
@@ -90,20 +92,59 @@ export default function BookletAgentView({
   const [selectedChapter, setSelectedChapter] = useState<string>("");
   const activeAgentKey = agentKey || id || "booklet";
   const didInitReset = useRef(false);
+  const lastImportedSignatureRef = useRef<string | null>(null);
+  const routeTransfer =
+    location.state?.fromSyllabusAgent &&
+    Array.isArray(location.state?.weeks) &&
+    location.state.weeks.length > 0
+      ? location.state
+      : null;
+  const storedTransfer = useMemo(
+    () => (courseId ? loadBookletTransfer(courseId) : null),
+    [courseId],
+  );
+  const effectiveTransfer = useMemo(
+    () =>
+      routeTransfer
+        ? {
+            weeks: routeTransfer.weeks ?? [],
+            topics: routeTransfer.topics ?? [],
+            audience: routeTransfer.audience ?? "",
+            constraints: routeTransfer.constraints ?? "",
+          }
+        : storedTransfer
+          ? {
+              weeks: storedTransfer.weeks,
+              topics: storedTransfer.topics,
+              audience: storedTransfer.audience,
+              constraints: storedTransfer.constraints,
+            }
+          : null,
+    [routeTransfer, storedTransfer],
+  );
+  const importedFromSyllabus = Boolean(effectiveTransfer);
 
   const importedWeeks = useMemo(
     () =>
-      location.state?.fromSyllabusAgent && Array.isArray(location.state.weeks)
-        ? location.state.weeks
+      importedFromSyllabus && Array.isArray(effectiveTransfer?.weeks)
+        ? effectiveTransfer.weeks
         : [],
-    [location.state],
+    [effectiveTransfer, importedFromSyllabus],
   );
   const importedTopics = useMemo(
     () =>
-      location.state?.fromSyllabusAgent && Array.isArray(location.state.topics)
-        ? location.state.topics.filter(Boolean)
+      importedFromSyllabus && Array.isArray(effectiveTransfer?.topics)
+        ? effectiveTransfer.topics.filter(Boolean)
         : [],
-    [location.state],
+    [effectiveTransfer, importedFromSyllabus],
+  );
+  const importedOutline = useMemo(
+    () => (importedWeeks.length > 0 ? outlineFromSyllabus(importedWeeks) : []),
+    [importedWeeks],
+  );
+  const importedWeeksSignature = useMemo(
+    () => JSON.stringify(importedWeeks),
+    [importedWeeks],
   );
 
   const stepIndex = useMemo(() => {
@@ -119,6 +160,7 @@ export default function BookletAgentView({
     () => chapters.find((chapter) => chapter.id === activeChapterId) ?? null,
     [activeChapterId, chapters],
   );
+  const effectiveOutline = outline.length > 0 ? outline : importedOutline;
 
   const handleGenerateOutline = async () => {
     setErrorMessage(null);
@@ -220,7 +262,7 @@ export default function BookletAgentView({
                 : importedWeeks.length
                   ? "weeks"
                   : "unknown",
-            outline,
+            outline: effectiveOutline,
           },
           {
             chapter_title: result.chapter_name,
@@ -317,14 +359,18 @@ export default function BookletAgentView({
       y += lineHeight;
     });
 
-    const safeName = chapter.title.replace(/[^a-z0-9_\-]+/gi, "-").slice(0, 80);
+    const safeName = chapter.title.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 80);
     doc.save(`${safeName || "chapter"}.pdf`);
   };
 
   useEffect(() => {
-    if (!location.state?.fromSyllabusAgent || importedWeeks.length === 0) {
+    if (!importedFromSyllabus || importedWeeks.length === 0) {
       return;
     }
+    if (lastImportedSignatureRef.current === importedWeeksSignature) {
+      return;
+    }
+    lastImportedSignatureRef.current = importedWeeksSignature;
 
     setConfig((prev) => ({
       ...prev,
@@ -337,13 +383,22 @@ export default function BookletAgentView({
     setActiveTab("outline");
     setOutlineError(null);
     setErrorMessage(null);
-  }, [course?.name, importedWeeks, location.state]);
+    if (courseId) {
+      clearBookletTransfer(courseId);
+    }
+  }, [
+    course?.name,
+    courseId,
+    importedFromSyllabus,
+    importedWeeks,
+    importedWeeksSignature,
+  ]);
 
   useEffect(() => {
-    if (!selectedChapter && outline.length > 0) {
-      setSelectedChapter(outline[0].title);
+    if (!selectedChapter && effectiveOutline.length > 0) {
+      setSelectedChapter(effectiveOutline[0].title);
     }
-  }, [outline, selectedChapter]);
+  }, [effectiveOutline, selectedChapter]);
 
   useEffect(() => {
     if (!selectedRun) {
@@ -430,7 +485,7 @@ export default function BookletAgentView({
     setOutlineError(null);
     setChapterError(null);
     setSelectedChapter("");
-    onClearSelectedRun?.();
+    lastImportedSignatureRef.current = null;
   }, [clearSelectionVersion]);
 
   return (
@@ -617,12 +672,12 @@ export default function BookletAgentView({
                   value={selectedChapter}
                   onChange={(event) => setSelectedChapter(event.target.value)}
                   className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  disabled={outline.length === 0}
+                  disabled={effectiveOutline.length === 0}
                 >
-                  {outline.length === 0 ? (
+                  {effectiveOutline.length === 0 ? (
                     <option value="">Generate an outline first</option>
                   ) : (
-                    outline.map((unit) => (
+                    effectiveOutline.map((unit) => (
                       <option key={unit.title} value={unit.title}>
                         {unit.title}
                       </option>
@@ -640,7 +695,7 @@ export default function BookletAgentView({
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleGenerateChapter}
-                  disabled={outline.length === 0 || agentState === "drafting"}
+                  disabled={effectiveOutline.length === 0 || agentState === "drafting"}
                   className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {agentState === "drafting" ? "Drafting..." : "Generate chapter"}
@@ -714,8 +769,8 @@ export default function BookletAgentView({
                       <div className="h-3 w-full animate-pulse rounded bg-slate-800/60" />
                       <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800/60" />
                     </div>
-                  ) : outline.length > 0 ? (
-                    outline.map((unit) => (
+                  ) : effectiveOutline.length > 0 ? (
+                    effectiveOutline.map((unit) => (
                       <div
                         key={unit.title}
                         className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3"

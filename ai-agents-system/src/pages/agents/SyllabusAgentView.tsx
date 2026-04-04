@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
+import { saveBookletTransfer } from "../../lib/agentTransferStore";
 import { getCurrentUser } from "../../lib/authStorage";
 import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
@@ -316,6 +317,14 @@ export default function SyllabusAgentView({
   };
 
   const handleNavigateToBooklet = () => {
+    saveBookletTransfer({
+      courseId,
+      weeks: weekPlan,
+      topics,
+      audience,
+      constraints,
+    });
+
     if (courseId) {
       const availability = getAgentAvailability(courseId);
       if (!availability.booklet) {

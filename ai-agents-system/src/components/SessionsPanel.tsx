@@ -118,24 +118,29 @@ export default function SessionsPanel({
             sessions.map((session) => (
               <div
                 key={session.id}
-                className={`rounded-xl border px-3 py-2 text-left transition ${
+                className={`min-h-[6.5rem] rounded-xl border px-3 py-2 text-left transition ${
                   effectiveSelectedSessionId === session.id
                     ? "border-sky-400/60 bg-sky-500/10 text-slate-100"
                     : "border-slate-800/70 bg-slate-950/40 text-slate-300 hover:border-slate-600"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex h-full items-start justify-between gap-3">
                   <button
                     type="button"
                     onClick={() => handleSelectSession(session.id)}
                     className="min-w-0 flex-1 text-left"
                   >
-                    <div className="text-sm font-semibold">{session.title}</div>
-                    <div className="text-[11px] text-slate-400">
+                    <div
+                      className="line-clamp-2 min-h-[3.5rem] text-sm font-semibold leading-snug"
+                      title={session.title}
+                    >
+                      {session.title}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-400">
                       {new Date(session.created_at).toLocaleDateString()}
                     </div>
                   </button>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {effectiveSelectedSessionId === session.id ? (
                       <button
                         type="button"
