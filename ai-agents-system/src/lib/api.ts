@@ -116,6 +116,10 @@ export type HomeworkGenerationPayload = {
   mcq_correct_count: number;
 };
 
+export type HomeworkUploadPayload = Omit<HomeworkGenerationPayload, "chapter_text"> & {
+  file: File;
+};
+
 export type HomeworkOption = {
   label: string;
   text: string;
@@ -387,6 +391,33 @@ export async function generateHomework(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as HomeworkGenerationResponse;
+}
+
+export async function generateHomeworkWithFile(
+  payload: HomeworkUploadPayload
+): Promise<HomeworkGenerationResponse> {
+  const formData = new FormData();
+  formData.append("file", payload.file, payload.file.name);
+  if (payload.chapter_title?.trim()) {
+    formData.append("chapter_title", payload.chapter_title.trim());
+  }
+  formData.append("mcq_question_count", String(payload.mcq_question_count));
+  formData.append("open_question_count", String(payload.open_question_count));
+  formData.append("base_difficulty", payload.base_difficulty);
+  formData.append("points_per_question", String(payload.points_per_question));
+  formData.append("mcq_option_count", String(payload.mcq_option_count));
+  formData.append("mcq_correct_count", String(payload.mcq_correct_count));
+
+  const res = await fetch(`${API_BASE_URL}/homework/generate/upload`, {
+    method: "POST",
+    body: formData,
   });
 
   if (!res.ok) {

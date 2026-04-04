@@ -5,6 +5,7 @@ import { useLocation, useParams } from "react-router-dom";
 
 import {
   generateHomework,
+  generateHomeworkWithFile,
   type HomeworkDifficulty,
   type HomeworkGenerationResponse,
   type HomeworkQuestion,
@@ -69,6 +70,7 @@ export default function HomeworkAgentView({
   const [chapterSource, setChapterSource] = useState<string>(
     initialImportedChapter?.text ?? "",
   );
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -92,12 +94,21 @@ export default function HomeworkAgentView({
       return;
     }
 
+    const isSupported = /\.(pdf|docx|txt|md|csv|json|html|htm)$/i.test(file.name);
+    setUploadedFileName(file.name);
+    setUploadedFile(file);
+
+    if (!isSupported) {
+      setUploadError(
+        "Supported chapter files: PDF, DOCX, TXT, MD, CSV, JSON, and HTML.",
+      );
+      setChapterSource("");
+      return;
+    }
+
     const isTextLike = /\.(txt|md|csv|json|html|htm)$/i.test(file.name);
     if (!isTextLike) {
-      setUploadedFileName(file.name);
-      setUploadError(
-        "This demo currently reads TXT, MD, CSV, JSON, and HTML files.",
-      );
+      setUploadError(null);
       setChapterSource("");
       return;
     }
@@ -105,10 +116,8 @@ export default function HomeworkAgentView({
     try {
       const text = await file.text();
       setChapterSource(text);
-      setUploadedFileName(file.name);
       setUploadError(null);
     } catch {
-      setUploadedFileName(file.name);
       setUploadError("Could not read the selected file.");
       setChapterSource("");
     }
@@ -377,7 +386,8 @@ export default function HomeworkAgentView({
     event.preventDefault();
 
     const trimmedChapter = chapterSource.trim();
-    if (!trimmedChapter) {
+    const hasUpload = inputMode === "file" && uploadedFile;
+    if (!trimmedChapter && !hasUpload) {
       setGenerationError("Paste or upload a chapter before generating homework.");
       return;
     }
@@ -412,16 +422,28 @@ export default function HomeworkAgentView({
     setIsGenerating(true);
 
     try {
-      const response: HomeworkGenerationResponse = await generateHomework({
-        chapter_text: trimmedChapter,
-        chapter_title: importedChapter?.title,
-        mcq_question_count: mcqCount,
-        open_question_count: openCount,
-        base_difficulty: baseDifficulty,
-        points_per_question: basePoints,
-        mcq_option_count: mcqOptionCount,
-        mcq_correct_count: mcqCorrectCount,
-      });
+      const response: HomeworkGenerationResponse =
+        inputMode === "file" && uploadedFile
+          ? await generateHomeworkWithFile({
+              file: uploadedFile,
+              chapter_title: importedChapter?.title || uploadedFile.name,
+              mcq_question_count: mcqCount,
+              open_question_count: openCount,
+              base_difficulty: baseDifficulty,
+              points_per_question: basePoints,
+              mcq_option_count: mcqOptionCount,
+              mcq_correct_count: mcqCorrectCount,
+            })
+          : await generateHomework({
+              chapter_text: trimmedChapter,
+              chapter_title: importedChapter?.title,
+              mcq_question_count: mcqCount,
+              open_question_count: openCount,
+              base_difficulty: baseDifficulty,
+              points_per_question: basePoints,
+              mcq_option_count: mcqOptionCount,
+              mcq_correct_count: mcqCorrectCount,
+            });
 
       setQuestions(response.questions);
       setHasGenerated(true);
@@ -461,7 +483,7 @@ export default function HomeworkAgentView({
       session.id,
       {
         chapter_text: chapterSource,
-        chapter_title: importedChapter?.title,
+        chapter_title: importedChapter?.title || uploadedFileName || "",
         input_mode: inputMode,
         mcq_question_count: mcqCount,
         open_question_count: openCount,
@@ -524,6 +546,7 @@ export default function HomeworkAgentView({
       setMcqCorrectCount(inputData.mcq_correct_count);
     }
 
+    setUploadedFile(null);
     setUploadedFileName(null);
     setUploadError(null);
     setGenerationError(null);
@@ -539,6 +562,7 @@ export default function HomeworkAgentView({
   useEffect(() => {
     setInputMode("text");
     setChapterSource(initialImportedChapter?.text ?? "");
+    setUploadedFile(null);
     setUploadedFileName(null);
     setUploadError(null);
     setGenerationError(null);
@@ -622,11 +646,11 @@ export default function HomeworkAgentView({
                     {uploadedFileName || "Drop a chapter file here or click to browse"}
                   </span>
                   <span className="text-xs text-slate-400">
-                    Supported in this demo: TXT, MD, CSV, JSON, HTML.
+                    Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML.
                   </span>
                   <input
                     type="file"
-                    accept=".txt,.md,.csv,.json,.html,.htm"
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm"
                     onChange={handleFileChange}
                     className="hidden"
                   />
