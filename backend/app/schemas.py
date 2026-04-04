@@ -154,3 +154,37 @@ class BookletChapterResponse(BaseModel):
     chapter_name: str
     draft_md: str
     final_md: str
+
+
+class HomeworkGenerationRequest(BaseModel):
+    chapter_text: str = Field(min_length=20, max_length=200_000)
+    chapter_title: Optional[str] = Field(default=None, max_length=200)
+    mcq_question_count: int = Field(default=0, ge=0, le=20)
+    open_question_count: int = Field(default=0, ge=0, le=20)
+    base_difficulty: Literal["easy", "medium", "difficult"] = "medium"
+    points_per_question: int = Field(default=10, ge=1, le=100)
+    mcq_option_count: int = Field(default=0, ge=0, le=8)
+    mcq_correct_count: int = Field(default=0, ge=0, le=4)
+
+
+class HomeworkOptionOut(BaseModel):
+    label: str
+    text: str
+    is_correct: bool
+
+
+class HomeworkQuestionOut(BaseModel):
+    id: str
+    type: Literal["mcq", "open"]
+    difficulty: Literal["easy", "medium", "difficult"]
+    points: int
+    prompt: str
+    student_answer: str
+    grading_criteria: list[str]
+    options: list[HomeworkOptionOut] = Field(default_factory=list)
+    correct_answers_count: Optional[int] = None
+
+
+class HomeworkGenerationResponse(BaseModel):
+    chapter_title: Optional[str] = None
+    questions: list[HomeworkQuestionOut]

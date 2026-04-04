@@ -83,6 +83,20 @@ export function listRuns(sessionId: string): SessionRun[] {
   return runs.filter((run) => run.session_id === sessionId);
 }
 
+export function listRunsForCourseAgent(
+  courseId: string,
+  agentKey: string,
+): SessionRun[] {
+  const sessions = listSessions(courseId, agentKey);
+  if (sessions.length === 0) {
+    return [];
+  }
+
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const runs = readJson<SessionRun[]>(RUNS_KEY, []);
+  return runs.filter((run) => sessionIds.has(run.session_id));
+}
+
 export function createRun(
   sessionId: string,
   input_data: unknown,

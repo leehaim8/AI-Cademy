@@ -114,7 +114,6 @@ export default function CourseAgentPage() {
               courseId={courseId}
               agentKey={agentKey}
               onRunSelect={handleRunSelect}
-              showCreate={normalizedKey !== "booklet"}
               emptyHint={
                 normalizedKey === "booklet"
                   ? "No sessions yet. Generate a chapter to create one."
@@ -136,7 +135,11 @@ export default function CourseAgentPage() {
                 clearSelectionVersion={clearSelectionVersion}
               />
             ) : normalizedKey === "homework" ? (
-              <HomeworkAgentView />
+              <HomeworkAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
+              />
             ) : normalizedKey === "evaluation" ? (
               <EvaluationAgentView />
             ) : normalizedKey === "booklet" ? (

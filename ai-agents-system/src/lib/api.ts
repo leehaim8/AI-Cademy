@@ -103,6 +103,42 @@ export type BookletChapterResponse = {
   final_md: string;
 };
 
+export type HomeworkDifficulty = "easy" | "medium" | "difficult";
+
+export type HomeworkGenerationPayload = {
+  chapter_text: string;
+  chapter_title?: string;
+  mcq_question_count: number;
+  open_question_count: number;
+  base_difficulty: HomeworkDifficulty;
+  points_per_question: number;
+  mcq_option_count: number;
+  mcq_correct_count: number;
+};
+
+export type HomeworkOption = {
+  label: string;
+  text: string;
+  is_correct: boolean;
+};
+
+export type HomeworkQuestion = {
+  id: string;
+  type: "mcq" | "open";
+  difficulty: HomeworkDifficulty;
+  points: number;
+  prompt: string;
+  student_answer: string;
+  grading_criteria: string[];
+  options: HomeworkOption[];
+  correct_answers_count?: number | null;
+};
+
+export type HomeworkGenerationResponse = {
+  chapter_title?: string | null;
+  questions: HomeworkQuestion[];
+};
+
 export type TopicExtractionUploadPayload = {
   seminar_topic: string;
   files: File[];
@@ -342,4 +378,20 @@ export async function generateBookletChapter(
   }
 
   return (await res.json()) as BookletChapterResponse;
+}
+
+export async function generateHomework(
+  payload: HomeworkGenerationPayload
+): Promise<HomeworkGenerationResponse> {
+  const res = await fetch(`${API_BASE_URL}/homework/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as HomeworkGenerationResponse;
 }
