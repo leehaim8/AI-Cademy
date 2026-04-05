@@ -101,7 +101,7 @@ export default function SessionsPanel({
           <h2 className="text-sm font-semibold text-slate-100">Sessions</h2>
         </div>
 
-        <div className="mt-4 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
+        <div className="booklet-scroll mt-4 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
           {sessions.length === 0 ? (
             <p className="text-xs text-slate-400">
               {emptyHint ?? "No sessions yet. Create one to start."}
@@ -193,7 +193,7 @@ export default function SessionsPanel({
           <h3 className="text-sm font-semibold text-slate-100">Run history</h3>
           <p className="text-xs text-slate-400">{runsHeading}</p>
         </div>
-        <div className="mt-3 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
+        <div className="booklet-scroll mt-3 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
           {runs.length === 0 ? (
             <p className="text-xs text-slate-400">
               No runs yet.

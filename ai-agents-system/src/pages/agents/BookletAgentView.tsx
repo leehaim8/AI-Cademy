@@ -90,6 +90,7 @@ export default function BookletAgentView({
   const [outlineError, setOutlineError] = useState<string | null>(null);
   const [chapterError, setChapterError] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<string>("");
+  const [useImportedSyllabus, setUseImportedSyllabus] = useState<boolean>(true);
   const activeAgentKey = agentKey || id || "booklet";
   const didInitReset = useRef(false);
   const lastImportedSignatureRef = useRef<string | null>(null);
@@ -123,20 +124,21 @@ export default function BookletAgentView({
     [routeTransfer, storedTransfer],
   );
   const importedFromSyllabus = Boolean(effectiveTransfer);
+  const canUseImported = importedFromSyllabus && useImportedSyllabus;
 
   const importedWeeks = useMemo(
     () =>
-      importedFromSyllabus && Array.isArray(effectiveTransfer?.weeks)
+      canUseImported && Array.isArray(effectiveTransfer?.weeks)
         ? effectiveTransfer.weeks
         : [],
-    [effectiveTransfer, importedFromSyllabus],
+    [effectiveTransfer, canUseImported],
   );
   const importedTopics = useMemo(
     () =>
-      importedFromSyllabus && Array.isArray(effectiveTransfer?.topics)
+      canUseImported && Array.isArray(effectiveTransfer?.topics)
         ? effectiveTransfer.topics.filter(Boolean)
         : [],
-    [effectiveTransfer, importedFromSyllabus],
+    [effectiveTransfer, canUseImported],
   );
   const importedOutline = useMemo(
     () => (importedWeeks.length > 0 ? outlineFromSyllabus(importedWeeks) : []),
@@ -295,6 +297,7 @@ export default function BookletAgentView({
     setOutlineError(null);
     setChapterError(null);
     setSelectedChapter("");
+    setUseImportedSyllabus(true);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -314,6 +317,24 @@ export default function BookletAgentView({
     } catch {
       setErrorMessage("Clipboard copy failed.");
     }
+  };
+
+  const handleToggleImported = (nextValue: boolean) => {
+    setUseImportedSyllabus(nextValue);
+
+    if (!nextValue) {
+      setOutline([]);
+      setCourseMap(null);
+      setAgentState("idle");
+      setActiveTab("outline");
+      setOutlineError(null);
+      setErrorMessage(null);
+      setSelectedChapter("");
+      lastImportedSignatureRef.current = null;
+      return;
+    }
+
+    lastImportedSignatureRef.current = null;
   };
 
   const handleSendToHomework = (chapter: BookletChapter) => {
@@ -364,7 +385,7 @@ export default function BookletAgentView({
   };
 
   useEffect(() => {
-    if (!importedFromSyllabus || importedWeeks.length === 0) {
+    if (!canUseImported || importedWeeks.length === 0) {
       return;
     }
     if (lastImportedSignatureRef.current === importedWeeksSignature) {
@@ -389,7 +410,7 @@ export default function BookletAgentView({
   }, [
     course?.name,
     courseId,
-    importedFromSyllabus,
+    canUseImported,
     importedWeeks,
     importedWeeksSignature,
   ]);
@@ -485,6 +506,7 @@ export default function BookletAgentView({
     setOutlineError(null);
     setChapterError(null);
     setSelectedChapter("");
+    setUseImportedSyllabus(true);
     lastImportedSignatureRef.current = null;
   }, [clearSelectionVersion]);
 
@@ -508,13 +530,27 @@ export default function BookletAgentView({
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
 
-              {importedWeeks.length > 0 ? (
+              {importedFromSyllabus ? (
                 <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-xs text-violet-100">
-                  <p className="font-semibold">Imported from Syllabus Builder</p>
-                  <p className="mt-1 text-violet-200/90">
-                    Loaded {importedWeeks.length} weeks and {importedTopics.length}{" "}
-                    topics into the outline preview.
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">Imported from Syllabus Builder</p>
+                      <p className="mt-1 text-violet-200/90">
+                        {canUseImported
+                          ? `Loaded ${importedWeeks.length} weeks and ${importedTopics.length} topics into the outline preview.`
+                          : "Import is available, but currently disabled."}
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] font-semibold text-violet-100">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-violet-400"
+                        checked={useImportedSyllabus}
+                        onChange={(event) => handleToggleImported(event.target.checked)}
+                      />
+                      Use imported syllabus
+                    </label>
+                  </div>
                 </div>
               ) : null}
 
@@ -835,7 +871,7 @@ export default function BookletAgentView({
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3 text-xs text-slate-200">
+                      <div className="booklet-scroll max-h-[60vh] overflow-y-auto rounded-xl border border-slate-800/80 bg-slate-900/70 p-3 text-xs text-slate-200 shadow-inner shadow-black/40">
                         <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-slate-200">
                           {activeChapter.finalMd || activeChapter.draftMd}
                         </pre>

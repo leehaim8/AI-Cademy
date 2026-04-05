@@ -125,16 +125,28 @@ def parse_weekly_structure(syllabus_text: str) -> dict[str, Any]:
     current: dict[str, Any] | None = None
 
     week_re = re.compile(r"^\s*Week\s+(\d+)\s*[:\-]?\s*(.*)$", re.IGNORECASE)
+    table_week_re = re.compile(r"^\s*(\d{1,2})\s+(.+)$")
     central_re = re.compile(
         r"^\s*(Central\s*Topic|Main\s*Topic|Topic)\s*:\s*(.+)$",
         re.IGNORECASE,
     )
     bullet_re = re.compile(r"^\s*[-\u2022\*]\s+(.+)$")
     numbered_re = re.compile(r"^\s*\d+\s*[\.\)]\s+(.+)$")
+    header_re = re.compile(r"\bWeek\s+Theme\s+Topics\b", re.IGNORECASE)
+    course_structure_re = re.compile(r"^Course\s+Structure", re.IGNORECASE)
+    table_mode = False
 
     for raw in lines:
-        line = raw.strip()
+        line = re.sub(r"\s+", " ", raw).strip()
+        line = re.sub(r"([a-z])([A-Z])", r"\1 \2", line)
         if not line:
+            continue
+
+        if header_re.search(line):
+            table_mode = True
+            continue
+        if course_structure_re.search(line):
+            # Keep table mode if already enabled.
             continue
 
         week_match = week_re.match(line)
@@ -151,6 +163,28 @@ def parse_weekly_structure(syllabus_text: str) -> dict[str, Any]:
                 central_inline = central_re.match(trailing)
                 if central_inline:
                     current["central_topic"] = central_inline.group(2).strip()
+            continue
+
+        if table_mode:
+            table_match = table_week_re.match(line)
+            if table_match:
+                if current:
+                    weeks.append(current)
+                current = {
+                    "week_number": int(table_match.group(1)),
+                    "central_topic": table_match.group(2).strip(),
+                    "subtopics": [],
+                }
+                continue
+
+            if current is None:
+                continue
+
+            if header_re.search(line):
+                continue
+
+            if line:
+                current["subtopics"].append(line)
             continue
 
         if current is None:
