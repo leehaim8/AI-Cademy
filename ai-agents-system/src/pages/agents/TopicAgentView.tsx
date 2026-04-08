@@ -254,7 +254,7 @@ export default function TopicAgentView({
     });
   };
 
-  const handleSaveOutput = () => {
+  const handleSaveOutput = async () => {
     if (!courseId || !agentKey) {
       setSaveState("error");
       setSaveMessage("Course context is missing, so the topics could not be saved.");
@@ -270,9 +270,10 @@ export default function TopicAgentView({
     const sessionTitle = seminarTopic.trim() || "Topic extraction output";
     const notes = "Topic extraction output";
 
-    const session = createSession(courseId, agentKey, sessionTitle, notes);
+    try {
+      const session = await createSession(courseId, agentKey, sessionTitle, notes);
 
-    createRun(
+      await createRun(
       session.id,
       {
         seminar_topic: seminarTopic.trim(),
@@ -287,11 +288,17 @@ export default function TopicAgentView({
         })),
       },
       "success",
-    );
+      );
 
-    setSaveState("success");
-    setSaveMessage("Topic output saved to session history.");
-    onClearSelectedRun?.();
+      setSaveState("success");
+      setSaveMessage("Topic output saved to session history.");
+      onClearSelectedRun?.();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save topic output.";
+      setSaveState("error");
+      setSaveMessage(message);
+    }
   };
 
   useEffect(() => {

@@ -33,6 +33,14 @@ def parse_session_id(session_id: str) -> ObjectId:
     return parse_object_id(session_id, "session id")
 
 
+def session_public_id(document: dict) -> str:
+    return str(document.get("public_id") or document["_id"])
+
+
+def session_run_public_id(document: dict) -> str:
+    return str(document.get("public_id") or document["_id"])
+
+
 def serialize_course(document: dict) -> dict:
     return {
         "id": str(document["_id"]),
@@ -64,7 +72,7 @@ def serialize_course_agent(document: dict) -> dict:
 
 def serialize_session(document: dict) -> dict:
     return {
-        "id": str(document["_id"]),
+        "id": session_public_id(document),
         "course_id": str(document["course_id"]),
         "agent_key": document["agent_key"],
         "title": document["title"],
@@ -78,7 +86,7 @@ def serialize_session(document: dict) -> dict:
 
 def serialize_session_run(document: dict) -> dict:
     return {
-        "id": str(document["_id"]),
+        "id": session_run_public_id(document),
         "session_id": str(document["session_id"]),
         "input_data": document.get("input_data"),
         "output_data": document.get("output_data"),

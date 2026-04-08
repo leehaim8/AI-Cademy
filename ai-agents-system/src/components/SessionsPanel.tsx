@@ -25,6 +25,8 @@ export default function SessionsPanel({
     null,
   );
   const [storeVersion, setStoreVersion] = useState(0);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [runs, setRuns] = useState<SessionRun[]>([]);
 
   useEffect(() => {
     const handleStoreChanged = () => {
@@ -37,12 +39,31 @@ export default function SessionsPanel({
     };
   }, []);
 
-  const sessions = useMemo<Session[]>(() => {
-    void storeVersion;
-    if (!courseId || !agentKey) {
-      return [];
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSessions() {
+      if (!courseId || !agentKey) {
+        setSessions([]);
+        return;
+      }
+
+      try {
+        const nextSessions = await listSessions(courseId, agentKey);
+        if (!cancelled) {
+          setSessions(nextSessions);
+        }
+      } catch {
+        if (!cancelled) {
+          setSessions([]);
+        }
+      }
     }
-    return listSessions(courseId, agentKey);
+
+    void loadSessions();
+    return () => {
+      cancelled = true;
+    };
   }, [courseId, agentKey, storeVersion]);
 
   const effectiveSelectedSessionId =
@@ -55,21 +76,45 @@ export default function SessionsPanel({
     [sessions, effectiveSelectedSessionId],
   );
 
-  const runs = useMemo<SessionRun[]>(() => {
-    void storeVersion;
-    if (!courseId || !agentKey) {
-      return [];
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRuns() {
+      if (!courseId || !agentKey) {
+        setRuns([]);
+        return;
+      }
+
+      try {
+        const nextRuns = await listRunsForCourseAgent(courseId, agentKey);
+        if (!cancelled) {
+          setRuns(nextRuns);
+        }
+      } catch {
+        if (!cancelled) {
+          setRuns([]);
+        }
+      }
     }
-    return listRunsForCourseAgent(courseId, agentKey);
+
+    void loadRuns();
+    return () => {
+      cancelled = true;
+    };
   }, [agentKey, courseId, storeVersion]);
 
   const runsHeading = selectedSession
     ? `${selectedSession.title} · showing all runs`
     : "Showing all runs";
 
-  function handleSelectSession(sessionId: string) {
+  async function handleSelectSession(sessionId: string) {
     setSelectedSessionId(sessionId);
-    onRunSelect?.(listRuns(sessionId)[0] ?? null);
+    try {
+      const sessionRuns = await listRuns(sessionId);
+      onRunSelect?.(sessionRuns[0] ?? null);
+    } catch {
+      onRunSelect?.(null);
+    }
   }
 
   function handleCloseSession() {
@@ -77,7 +122,7 @@ export default function SessionsPanel({
     onRunSelect?.(null);
   }
 
-  function handleDeleteSession(sessionId: string) {
+  async function handleDeleteSession(sessionId: string) {
     const shouldDelete = window.confirm(
       "Are you sure you want to delete this session?",
     );
@@ -88,7 +133,11 @@ export default function SessionsPanel({
     if (effectiveSelectedSessionId === sessionId) {
       onRunSelect?.(null);
     }
-    deleteSession(sessionId);
+    try {
+      await deleteSession(sessionId);
+    } catch {
+      return;
+    }
     if (selectedSessionId === sessionId) {
       setSelectedSessionId(null);
     }

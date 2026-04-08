@@ -29,6 +29,8 @@ def init_indexes() -> None:
         unique=True,
     )
     sessions_collection.create_index([("course_id", ASCENDING), ("agent_key", ASCENDING)])
+    sessions_collection.create_index([("public_id", ASCENDING)], unique=True, sparse=True)
     session_runs_collection.create_index([("session_id", ASCENDING)])
+    session_runs_collection.create_index([("public_id", ASCENDING)], unique=True, sparse=True)
     topic_extraction_collection.create_index([("created_at", ASCENDING)])
     topic_extraction_collection.create_index([("seminar_topic", ASCENDING)])

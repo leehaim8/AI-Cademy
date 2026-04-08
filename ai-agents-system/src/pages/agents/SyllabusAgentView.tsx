@@ -352,7 +352,7 @@ export default function SyllabusAgentView({
     );
   };
 
-  const handleSaveOutput = () => {
+  const handleSaveOutput = async () => {
     if (!courseId || !agentKey) {
       setSaveState("error");
       setSaveMessage("Course context is missing, so the syllabus could not be saved.");
@@ -375,14 +375,15 @@ export default function SyllabusAgentView({
       constraints.trim() ? `Constraints: ${constraints.trim()}` : "",
     ].filter(Boolean);
 
-    const session = createSession(
-      courseId,
-      agentKey,
-      sessionTitle,
-      notesParts.join("\n"),
-    );
+    try {
+      const session = await createSession(
+        courseId,
+        agentKey,
+        sessionTitle,
+        notesParts.join("\n"),
+      );
 
-    createRun(
+      await createRun(
       session.id,
       {
         topics,
@@ -394,14 +395,20 @@ export default function SyllabusAgentView({
         weeks: weekPlan,
       },
       "success",
-    );
+      );
 
-    setSaveState("idle");
-    setSaveMessage(null);
-    setWeekPlan([]);
-    setHasGenerated(false);
-    setErrorMessage(null);
-    onClearSelectedRun?.();
+      setSaveState("idle");
+      setSaveMessage(null);
+      setWeekPlan([]);
+      setHasGenerated(false);
+      setErrorMessage(null);
+      onClearSelectedRun?.();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save syllabus output.";
+      setSaveState("error");
+      setSaveMessage(message);
+    }
   };
 
   useEffect(() => {
@@ -694,9 +701,10 @@ export default function SyllabusAgentView({
             {errorMessage}
           </div>
         ) : isGenerating ? (
-          <p className="text-xs text-slate-400">
-            Building prerequisite flow and consolidating weekly themes...
-          </p>
+          <div className="flex items-center gap-2 text-xs text-sky-200">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-200 border-t-transparent" />
+            <span>Analyzing syllabus...</span>
+          </div>
         ) : (
           <>
             <div className="flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">

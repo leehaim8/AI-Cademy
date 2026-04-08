@@ -490,7 +490,7 @@ export default function HomeworkAgentView({
     }
   };
 
-  const handleSaveOutput = () => {
+  const handleSaveOutput = async () => {
     if (!courseId || !agentKey) {
       setSaveState("error");
       setSaveMessage("Course context is missing, so the homework could not be saved.");
@@ -505,9 +505,16 @@ export default function HomeworkAgentView({
 
     const sessionTitle =
       importedChapter?.title?.trim() || "Homework output";
-    const session = createSession(courseId, agentKey, sessionTitle, "Homework output");
 
-    createRun(
+    try {
+      const session = await createSession(
+        courseId,
+        agentKey,
+        sessionTitle,
+        "Homework output",
+      );
+
+      await createRun(
       session.id,
       {
         chapter_text: chapterSource,
@@ -524,11 +531,17 @@ export default function HomeworkAgentView({
         questions,
       },
       "success",
-    );
+      );
 
-    setSaveState("success");
-    setSaveMessage("Homework output saved to session history.");
-    onClearSelectedRun?.();
+      setSaveState("success");
+      setSaveMessage("Homework output saved to session history.");
+      onClearSelectedRun?.();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save homework output.";
+      setSaveState("error");
+      setSaveMessage(message);
+    }
   };
 
   const handleSendToEvaluation = () => {

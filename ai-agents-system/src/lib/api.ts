@@ -1,4 +1,5 @@
 import type { AuthResponse, User } from "../types/auth";
+import type { Session, SessionRun } from "../types/course";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -151,6 +152,17 @@ export type TopicExtractionUploadPayload = {
   include_summary?: boolean;
 };
 
+export type SessionCreatePayload = {
+  title: string;
+  notes?: string;
+};
+
+export type SessionRunCreatePayload = {
+  input_data: unknown;
+  output_data: unknown;
+  status: SessionRun["status"];
+};
+
 async function parseError(res: Response): Promise<string> {
   try {
     const data = (await res.json()) as { detail?: string };
@@ -206,6 +218,88 @@ export async function fetchUser(userId: string): Promise<User> {
 
   const data = (await res.json()) as { user: User };
   return data.user;
+}
+
+export async function fetchSessions(
+  courseId: string,
+  agentKey: string,
+): Promise<Session[]> {
+  const res = await fetch(`${API_BASE_URL}/courses/${courseId}/agents/${agentKey}/sessions`);
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { sessions: Session[] };
+  return data.sessions;
+}
+
+export async function createBackendSession(
+  courseId: string,
+  agentKey: string,
+  payload: SessionCreatePayload,
+): Promise<Session> {
+  const res = await fetch(`${API_BASE_URL}/courses/${courseId}/agents/${agentKey}/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { session: Session };
+  return data.session;
+}
+
+export async function deleteBackendSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+}
+
+export async function fetchSessionRuns(sessionId: string): Promise<SessionRun[]> {
+  const res = await fetch(`${API_BASE_URL}/sessions/${sessionId}/runs`);
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { runs: SessionRun[] };
+  return data.runs;
+}
+
+export async function fetchRunsForCourseAgent(
+  courseId: string,
+  agentKey: string,
+): Promise<SessionRun[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/courses/${courseId}/agents/${agentKey}/session-runs`,
+  );
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { runs: SessionRun[] };
+  return data.runs;
+}
+
+export async function createBackendRun(
+  sessionId: string,
+  payload: SessionRunCreatePayload,
+): Promise<SessionRun> {
+  const res = await fetch(`${API_BASE_URL}/sessions/${sessionId}/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { run: SessionRun };
+  return data.run;
 }
 
 export async function updateUser(

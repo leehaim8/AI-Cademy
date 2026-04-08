@@ -295,8 +295,8 @@ export default function BookletAgentView({
         ]
           .filter(Boolean)
           .join(" · ");
-        const session = createSession(courseId, activeAgentKey, sessionTitle, notes);
-        createRun(
+        const session = await createSession(courseId, activeAgentKey, sessionTitle, notes);
+        await createRun(
           session.id,
           {
             course_name: config.courseName || undefined,
