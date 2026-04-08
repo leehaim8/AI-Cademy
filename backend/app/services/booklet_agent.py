@@ -19,7 +19,7 @@ COURSE_MAP_MODEL = os.getenv("BOOKLET_COURSE_MAP_MODEL") or os.getenv(
     "COURSE_MAP_MODEL", "gpt-4.1"
 )
 CHAPTER_MODEL = os.getenv("BOOKLET_CHAPTER_MODEL") or os.getenv(
-    "CHAPTER_MODEL", "gpt-5"
+    "CHAPTER_MODEL", "gpt-4.1"
 )
 ALIGN_MODEL = os.getenv("BOOKLET_ALIGN_MODEL") or CHAPTER_MODEL
 
