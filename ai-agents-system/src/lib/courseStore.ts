@@ -85,6 +85,11 @@ export function createCourse(input: {
   courses.unshift(course);
   writeJson(COURSES_KEY, courses);
 
+  const disabledByDefault = Object.fromEntries(
+    agentCatalog.map((agent) => [agent.key, false]),
+  );
+  setEnabledAgents(course.id, disabledByDefault);
+
   return course;
 }
 

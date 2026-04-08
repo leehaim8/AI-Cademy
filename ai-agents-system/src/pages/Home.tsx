@@ -75,8 +75,12 @@ export default function Home() {
     });
   }, [courseId, enabledAgents]);
 
-  const showEmptyState =
-    Boolean(courseId) && enabledAgents && filteredAgents.length === 0;
+  const allAgentsEnabled = useMemo(
+    () =>
+      Boolean(enabledAgents) &&
+      agentCatalog.every((agent) => Boolean(enabledAgents?.[agent.key])),
+    [enabledAgents],
+  );
 
   function handleToggleAgent(agentKey: string) {
     if (!courseId || !enabledAgents) return;
@@ -95,6 +99,16 @@ export default function Home() {
       ...enabledAgents,
       [agentKey]: !isEnabled,
     };
+    setAgentState(next);
+    setEnabledAgents(courseId, next);
+  }
+
+  function handleEnableAllAgents() {
+    if (!courseId) return;
+
+    const next = Object.fromEntries(
+      agentCatalog.map((agent) => [agent.key, true]),
+    );
     setAgentState(next);
     setEnabledAgents(courseId, next);
   }
@@ -166,7 +180,19 @@ export default function Home() {
           </div>
 
           {showManager ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-4">
+              <div className="mb-3 flex justify-end">
+                {!allAgentsEnabled ? (
+                  <button
+                    type="button"
+                    onClick={handleEnableAllAgents}
+                    className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-400"
+                  >
+                    Choose all agents
+                  </button>
+                ) : null}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
               {agentCatalog.map((agent) => {
                 const isEnabled = enabledAgents?.[agent.key] ?? true;
                 return (
@@ -197,21 +223,8 @@ export default function Home() {
                 );
               })}
             </div>
+            </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {showEmptyState ? (
-        <div className="mb-6 rounded-xl border border-slate-800/70 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>No agents enabled for this course yet.</span>
-            <Link
-              to={`/courses/${courseId}/settings`}
-              className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-            >
-              Choose agents for this course
-            </Link>
-          </div>
         </div>
       ) : null}
 
