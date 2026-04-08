@@ -1,4 +1,5 @@
 import { useMemo, useState, type SyntheticEvent } from "react";
+import { useLocation } from "react-router-dom";
 
 type MockReview = {
   score: number;
@@ -58,8 +59,28 @@ function buildMockReview(
 }
 
 export default function EvaluationAgentView() {
-  const [assignment, setAssignment] = useState("");
-  const [criteria, setCriteria] = useState("");
+  const location = useLocation() as {
+    state?: {
+      fromHomeworkAgent?: boolean;
+      assignment?: string;
+      criteria?: string;
+    };
+  };
+  const importedFromHomework = Boolean(location.state?.fromHomeworkAgent);
+  const importedAssignment =
+    importedFromHomework && typeof location.state?.assignment === "string"
+      ? location.state.assignment
+      : "";
+  const importedCriteria =
+    importedFromHomework && typeof location.state?.criteria === "string"
+      ? location.state.criteria
+      : "";
+  const [assignment, setAssignment] = useState(
+    importedAssignment,
+  );
+  const [criteria, setCriteria] = useState(
+    importedCriteria,
+  );
   const [submission, setSubmission] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -111,6 +132,11 @@ export default function EvaluationAgentView() {
         </div>
 
         <div className="space-y-3">
+          {importedFromHomework ? (
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
+              Imported from Homework Generator.
+            </div>
+          ) : null}
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
               <span>Assignment instructions & questions</span>

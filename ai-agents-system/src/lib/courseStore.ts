@@ -22,6 +22,11 @@ export const agentCatalog: AgentCatalogItem[] = [
     description: "Builds structured course syllabi automatically.",
   },
   {
+    key: "booklet",
+    name: "Course Booklet Generator",
+    description: "Generates syllabus-aligned chapters and booklet drafts.",
+  },
+  {
     key: "homework",
     name: "Homework Generator",
     description: "Generates personalized homework assignments.",
@@ -30,11 +35,6 @@ export const agentCatalog: AgentCatalogItem[] = [
     key: "evaluation",
     name: "Homework Checking Agent",
     description: "Checks homework against your rubric and suggests a grade.",
-  },
-  {
-    key: "booklet",
-    name: "Course Booklet Generator",
-    description: "Generates syllabus-aligned chapters and booklet drafts.",
   },
   {
     key: "code_review",

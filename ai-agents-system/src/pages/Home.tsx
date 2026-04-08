@@ -23,6 +23,12 @@ const agents = [
     emoji: "📚",
   },
   {
+    id: "booklet",
+    title: "Course Booklet Generator",
+    description: "Generate syllabus-aligned chapters and booklet drafts.",
+    emoji: "📘",
+  },
+  {
     id: "homework",
     title: "Homework Generator",
     description: "Generates personalized homework assignments.",
@@ -34,12 +40,6 @@ const agents = [
     description:
       "Checks homework against your rubric and suggests a grade.",
     emoji: "✅",
-  },
-  {
-    id: "booklet",
-    title: "Course Booklet Generator",
-    description: "Generate syllabus-aligned chapters and booklet drafts.",
-    emoji: "📘",
   },
   {
     id: "code-review",

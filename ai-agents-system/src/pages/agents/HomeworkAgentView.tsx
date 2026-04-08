@@ -1,7 +1,7 @@
 import { useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import jsPDF from "jspdf";
 import { useEffect } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import {
   generateHomework,
@@ -10,6 +10,7 @@ import {
   type HomeworkGenerationResponse,
   type HomeworkQuestion,
 } from "../../lib/api";
+import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
 
@@ -42,6 +43,7 @@ export default function HomeworkAgentView({
   onClearSelectedRun,
   clearSelectionVersion = 0,
 }: HomeworkAgentViewProps) {
+  const navigate = useNavigate();
   const location = useLocation() as {
     state?: {
       fromBookletAgent?: boolean;
@@ -127,6 +129,32 @@ export default function HomeworkAgentView({
     () => questions.reduce((sum, question) => sum + question.points, 0),
     [questions],
   );
+
+  const evaluationPayload = useMemo(() => {
+    const assignment = questions
+      .map((question, index) => {
+        const header = `${index + 1}. ${question.type === "mcq" ? "Multiple-choice" : "Open-ended"} (${question.points} pts)`;
+        const options =
+          question.options.length > 0
+            ? `\n${question.options
+                .map((option) => `${option.label}. ${option.text}`)
+                .join("\n")}`
+            : "";
+        return `${header}\n${question.prompt}${options}`;
+      })
+      .join("\n\n");
+
+    const criteria = questions
+      .map((question, index) => {
+        const items = question.grading_criteria
+          .map((criterion) => `- ${criterion}`)
+          .join("\n");
+        return `Question ${index + 1}\n${items}`;
+      })
+      .join("\n\n");
+
+    return { assignment, criteria };
+  }, [questions]);
 
   const handleDownloadPdf = () => {
     if (questions.length === 0) return;
@@ -379,7 +407,7 @@ export default function HomeworkAgentView({
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    doc.save(`${safeName || "homework-set"}.pdf`);
+    doc.save(`${safeName || "homework-set"}-homework.pdf`);
   };
 
   const handleGenerate = async (event: SyntheticEvent<HTMLFormElement>) => {
@@ -501,6 +529,36 @@ export default function HomeworkAgentView({
     setSaveState("success");
     setSaveMessage("Homework output saved to session history.");
     onClearSelectedRun?.();
+  };
+
+  const handleSendToEvaluation = () => {
+    if (questions.length === 0) {
+      return;
+    }
+
+    if (courseId) {
+      const availability = getAgentAvailability(courseId);
+      if (!availability.evaluation) {
+        const shouldEnable = window.confirm(
+          "Homework Checking Agent is not added to this course yet. Do you want to add it now?",
+        );
+        if (!shouldEnable) {
+          return;
+        }
+        enableAgentForCourse(courseId, "evaluation");
+      }
+    }
+
+    navigate(
+      courseId ? `/courses/${courseId}/agents/evaluation` : "/agent/evaluation",
+      {
+        state: {
+          fromHomeworkAgent: true,
+          assignment: evaluationPayload.assignment,
+          criteria: evaluationPayload.criteria,
+        },
+      },
+    );
   };
 
   useEffect(() => {
@@ -837,6 +895,13 @@ export default function HomeworkAgentView({
 
         {hasGenerated ? (
           <div className="flex flex-wrap justify-start gap-3">
+            <button
+              type="button"
+              onClick={handleSendToEvaluation}
+              className="inline-flex items-center justify-center rounded-lg border border-violet-500/60 bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-200 transition hover:bg-violet-500/20"
+            >
+              Send to Homework Checking Agent
+            </button>
             <button
               type="button"
               onClick={handleSaveOutput}

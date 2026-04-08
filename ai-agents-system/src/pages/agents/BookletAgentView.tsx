@@ -13,7 +13,11 @@ import {
   clearBookletTransfer,
   loadBookletTransfer,
 } from "../../lib/agentTransferStore";
-import { getCourse } from "../../lib/courseStore";
+import {
+  enableAgentForCourse,
+  getAgentAvailability,
+  getCourse,
+} from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
 
@@ -91,6 +95,8 @@ export default function BookletAgentView({
   const [chapterError, setChapterError] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<string>("");
   const [useImportedSyllabus, setUseImportedSyllabus] = useState<boolean>(true);
+  const [stageStartedAt, setStageStartedAt] = useState<number | null>(null);
+  const [stageNow, setStageNow] = useState<number>(Date.now());
   const activeAgentKey = agentKey || id || "booklet";
   const didInitReset = useRef(false);
   const lastImportedSignatureRef = useRef<string | null>(null);
@@ -158,6 +164,41 @@ export default function BookletAgentView({
     return 0;
   }, [agentState]);
 
+  const progressMeta = useMemo(() => {
+    if (!stageStartedAt) {
+      return null;
+    }
+
+    const stageConfig =
+      agentState === "ingesting"
+        ? {
+            label: "Building outline",
+            description: "Mapping the syllabus into course structure.",
+            estimateMs: 18000,
+          }
+        : agentState === "drafting"
+          ? {
+              label: "Generating chapter",
+              description: "Writing and aligning the chapter draft.",
+              estimateMs: 90000,
+            }
+          : null;
+
+    if (!stageConfig) {
+      return null;
+    }
+
+    const elapsedMs = Math.max(0, stageNow - stageStartedAt);
+    const ratio = Math.min(elapsedMs / stageConfig.estimateMs, 0.96);
+    const remainingMs = Math.max(stageConfig.estimateMs - elapsedMs, 0);
+
+    return {
+      ...stageConfig,
+      percent: Math.max(8, Math.round(ratio * 100)),
+      remainingSeconds: Math.ceil(remainingMs / 1000),
+    };
+  }, [agentState, stageNow, stageStartedAt]);
+
   const activeChapter = useMemo(
     () => chapters.find((chapter) => chapter.id === activeChapterId) ?? null,
     [activeChapterId, chapters],
@@ -168,6 +209,7 @@ export default function BookletAgentView({
     setErrorMessage(null);
     setOutlineError(null);
     setAgentState("ingesting");
+    setStageStartedAt(Date.now());
 
     try {
       let response;
@@ -195,6 +237,7 @@ export default function BookletAgentView({
       setOutline(response.outline ?? []);
       setCourseMap(response.course_map ?? null);
       setAgentState("outline_ready");
+      setStageStartedAt(null);
       setActiveTab("outline");
       setSelectedChapter(
         response.outline?.[0]?.title ?? selectedChapter ?? "",
@@ -203,6 +246,7 @@ export default function BookletAgentView({
       const message =
         error instanceof Error ? error.message : "Failed to generate outline.";
       setAgentState("error");
+      setStageStartedAt(null);
       setOutlineError(message);
       setErrorMessage(message);
     }
@@ -220,6 +264,7 @@ export default function BookletAgentView({
 
     setChapterError(null);
     setAgentState("drafting");
+    setStageStartedAt(Date.now());
     setActiveTab("chapter");
 
     try {
@@ -239,6 +284,7 @@ export default function BookletAgentView({
       setChapters((prev) => [chapter, ...prev]);
       setActiveChapterId(chapter.id);
       setAgentState("draft_ready");
+      setStageStartedAt(null);
 
       if (courseId) {
         const sessionTitle = `Chapter: ${result.chapter_name}`;
@@ -279,6 +325,7 @@ export default function BookletAgentView({
       const message =
         error instanceof Error ? error.message : "Failed to generate chapter.";
       setAgentState("error");
+      setStageStartedAt(null);
       setChapterError(message);
     }
   };
@@ -298,6 +345,7 @@ export default function BookletAgentView({
     setChapterError(null);
     setSelectedChapter("");
     setUseImportedSyllabus(true);
+    setStageStartedAt(null);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -339,6 +387,20 @@ export default function BookletAgentView({
 
   const handleSendToHomework = (chapter: BookletChapter) => {
     const chapterText = chapter.finalMd || chapter.draftMd;
+
+    if (courseId) {
+      const availability = getAgentAvailability(courseId);
+      if (!availability.homework) {
+        const shouldEnable = window.confirm(
+          "Homework Generator is not added to this course yet. Do you want to add it now?",
+        );
+        if (!shouldEnable) {
+          return;
+        }
+        enableAgentForCourse(courseId, "homework");
+      }
+    }
+
     navigate(
       courseId ? `/courses/${courseId}/agents/homework` : "/agent/homework",
       {
@@ -383,6 +445,20 @@ export default function BookletAgentView({
     const safeName = chapter.title.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 80);
     doc.save(`${safeName || "chapter"}.pdf`);
   };
+
+  useEffect(() => {
+    if (agentState !== "ingesting" && agentState !== "drafting") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setStageNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [agentState]);
 
   useEffect(() => {
     if (!canUseImported || importedWeeks.length === 0) {
@@ -507,6 +583,7 @@ export default function BookletAgentView({
     setChapterError(null);
     setSelectedChapter("");
     setUseImportedSyllabus(true);
+    setStageStartedAt(null);
     lastImportedSignatureRef.current = null;
   }, [clearSelectionVersion]);
 
@@ -746,6 +823,32 @@ export default function BookletAgentView({
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-slate-100">Progress</h3>
+              {progressMeta ? (
+                <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-sky-100">
+                        {progressMeta.label}
+                      </p>
+                      <p className="mt-1 text-xs text-sky-100/80">
+                        {progressMeta.description}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right text-xs text-sky-100/90">
+                      About {progressMeta.remainingSeconds}s left
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-950/50">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300 transition-[width] duration-1000 ease-linear"
+                      style={{ width: `${progressMeta.percent}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[11px] text-sky-100/75">
+                    This is an approximate progress estimate.
+                  </p>
+                </div>
+              ) : null}
               <div className="flex flex-col gap-3 text-xs text-slate-300">
                 {[
                   { label: "1. Ingest & Map", index: 1 },
