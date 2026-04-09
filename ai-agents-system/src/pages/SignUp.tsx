@@ -53,7 +53,7 @@ export default function SignUp() {
           Sign Up
         </h1>
         <p className="text-sm text-slate-300 mb-6">
-          Create your account to start using the platform.
+          Create your account to start using the platform
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

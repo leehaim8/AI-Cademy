@@ -598,7 +598,7 @@ export default function BookletAgentView({
               </h2>
               <p className="text-sm text-slate-300">
                 Generate structured chapters from your syllabus, then send them
-                to the Homework Generator.
+                to the Homework Generator
               </p>
             </div>
           </div>
@@ -614,8 +614,8 @@ export default function BookletAgentView({
                       <p className="font-semibold">Imported from Syllabus Builder</p>
                       <p className="mt-1 text-violet-200/90">
                         {canUseImported
-                          ? `Loaded ${importedWeeks.length} weeks and ${importedTopics.length} topics into the outline preview.`
-                          : "Import is available, but currently disabled."}
+                          ? `Loaded ${importedWeeks.length} weeks and ${importedTopics.length} topics into the outline preview`
+                          : "Import is available, but currently disabled"}
                       </p>
                     </div>
                     <label className="flex items-center gap-2 text-[11px] font-semibold text-violet-100">
@@ -704,7 +704,7 @@ export default function BookletAgentView({
                   <p className="text-sky-100 font-semibold">Syllabus sources</p>
                   <p className="mt-1 text-sky-100/90">
                     Use weeks from the Syllabus Builder, upload a file, or paste
-                    the syllabus text.
+                    the syllabus text
                   </p>
                 </div>
               </div>
@@ -845,7 +845,7 @@ export default function BookletAgentView({
                     />
                   </div>
                   <p className="mt-2 text-[11px] text-sky-100/75">
-                    This is an approximate progress estimate.
+                    This is an approximate progress estimate
                   </p>
                 </div>
               ) : null}
@@ -929,7 +929,7 @@ export default function BookletAgentView({
                     ))
                   ) : (
                     <p className="text-xs text-slate-400">
-                      Generate an outline to see the structured course plan.
+                      Generate an outline to see the structured course plan
                     </p>
                   )}
                 </div>
@@ -1000,7 +1000,7 @@ export default function BookletAgentView({
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">
-                      Generate a chapter after the outline is ready.
+                      Generate a chapter after the outline is ready
                     </p>
                   )}
                 </div>
@@ -1025,7 +1025,7 @@ export default function BookletAgentView({
                     </div>
                   ) : (
                     <div className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">
-                      Export will be available after chapter generation.
+                      Export will be available after chapter generation
                     </div>
                   )}
                 </div>

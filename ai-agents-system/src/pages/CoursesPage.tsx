@@ -105,7 +105,7 @@ export default function CoursesPage() {
           {headline}
         </h1>
         <p className="max-w-2xl text-sm text-slate-300">
-          Courses are the starting point for your agent workspaces.
+          Courses are the starting point for your agent workspaces
         </p>
       </header>
 
@@ -168,7 +168,7 @@ export default function CoursesPage() {
           <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-6 text-slate-200">
             <h2 className="text-lg font-semibold">No courses yet</h2>
             <p className="mt-2 text-sm text-slate-300">
-              Create your first course to start using the agents.
+              Create your first course to start using the agents
             </p>
           </div>
         ) : (

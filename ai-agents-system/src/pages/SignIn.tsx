@@ -48,7 +48,7 @@ export default function SignIn() {
           Sign In
         </h1>
         <p className="text-sm text-slate-300 mb-6">
-          Continue to your teaching workspace.
+          Continue to your teaching workspace
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

@@ -717,7 +717,7 @@ export default function HomeworkAgentView({
                     {uploadedFileName || "Drop a chapter file here or click to browse"}
                   </span>
                   <span className="text-xs text-slate-400">
-                    Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML.
+                    Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML
                   </span>
                   <input
                     type="file"
@@ -748,7 +748,7 @@ export default function HomeworkAgentView({
               </label>
               <p className="mt-1 text-[11px] leading-5 text-slate-500">
                 Set how many closed-ended questions to generate, how many answer
-                choices each question should have, and how many answers are correct.
+                choices each question should have, and how many answers are correct
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="flex h-full flex-col rounded-xl border border-slate-800/70 bg-slate-950/50 p-3">
@@ -951,7 +951,7 @@ export default function HomeworkAgentView({
             </p>
             <p>
               Provide a chapter, choose the number and type of questions, and the
-              generated homework will appear here.
+              generated homework will appear here
             </p>
           </div>
         ) : (

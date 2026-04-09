@@ -525,7 +525,7 @@ export default function SyllabusAgentView({
                     <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
                       <span>Imported topics</span>
                       <span className="text-slate-500">
-                        Loaded from the Topic Extraction Agent.
+                        Loaded from the Topic Extraction Agent
                       </span>
                     </div>
                     <textarea
@@ -539,7 +539,7 @@ export default function SyllabusAgentView({
                     <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
                       <span>Additional topics</span>
                       <span className="text-slate-500">
-                        Add any extra ideas you want to cover.
+                        Add any extra ideas you want to cover
                       </span>
                     </div>
                     <div className="flex gap-2">
@@ -587,7 +587,7 @@ export default function SyllabusAgentView({
                 <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
                   <span>Topics</span>
                   <span className="text-slate-500">
-                    Add the main ideas you want to cover.
+                    Add the main ideas you want to cover
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -688,13 +688,13 @@ export default function SyllabusAgentView({
         backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <h2 className="text-sm font-semibold text-slate-100">
-          Week-by-week syllabus
+          Weekly syllabus
         </h2>
 
         {!hasGenerated ? (
           <p className="text-xs text-slate-400">
-            Choose topics, audience, and number of weeks, then generate a syllabus.
-            The backend agent will return a structured weekly teaching plan here.
+            Choose topics, audience, and number of weeks, then generate a syllabus
+            . The backend agent will return a structured weekly teaching plan here
           </p>
         ) : errorMessage ? (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
@@ -731,7 +731,7 @@ export default function SyllabusAgentView({
                   </div>
                   {week.topics.length === 0 ? (
                     <p className="text-[11px] text-slate-500">
-                      No topics assigned.
+                      No topics assigned
                     </p>
                   ) : (
                     <ul className="mt-1 space-y-1 text-[11px] text-slate-200">
@@ -753,7 +753,7 @@ export default function SyllabusAgentView({
                   Export
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  Save this syllabus to session history or export it as a PDF.
+                  Save this syllabus to session history or export it as a PDF
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

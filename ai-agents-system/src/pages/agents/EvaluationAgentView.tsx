@@ -134,7 +134,7 @@ export default function EvaluationAgentView() {
         <div className="space-y-3">
           {importedFromHomework ? (
             <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
-              Imported from Homework Generator.
+              Imported from Homework Generator
             </div>
           ) : null}
           <div>
@@ -225,11 +225,11 @@ export default function EvaluationAgentView() {
             Fill in the assignment, rubric and a student submission on the left,
             then click
             <span className="font-medium text-emerald-300"> Run homework check</span>
-            . The suggested grade and feedback will appear here.
+            . The suggested grade and feedback will appear here
           </p>
         ) : !review ? (
           <p className="text-xs text-amber-300">
-            There is no student submission to analyse yet. Paste an answer and try again.
+            There is no student submission to analyse yet. Paste an answer and try again
           </p>
         ) : (
           <div className="space-y-4">
@@ -305,7 +305,7 @@ export default function EvaluationAgentView() {
               </p>
               {rubricItems.length === 0 ? (
                 <p className="text-[11px] text-slate-400">
-                  No rubric items were added yet.
+                  No rubric items were added yet
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -327,7 +327,7 @@ export default function EvaluationAgentView() {
         )}
 
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          Use this view to quickly inspect how well a submission matches your assignment and rubric.
+          Use this view to quickly inspect how well a submission matches your assignment and rubric
         </p>
       </div>
     </div>

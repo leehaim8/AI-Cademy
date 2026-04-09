@@ -82,7 +82,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="text-sm text-slate-300 mb-8">
-          Manage your profile details.
+          Manage your profile details
         </p>
 
         <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 backdrop-blur-xl p-7 shadow-[0_18px_45px_rgba(15,23,42,0.85)]">

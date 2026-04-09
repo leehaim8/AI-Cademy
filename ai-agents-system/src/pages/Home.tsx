@@ -19,13 +19,13 @@ const agents = [
   {
     id: "syllabus",
     title: "Syllabus Builder",
-    description: "Builds structured course syllabi automatically.",
+    description: "Structured course syllabi automatically",
     emoji: "📚",
   },
   {
     id: "booklet",
     title: "Course Booklet Generator",
-    description: "Generate syllabus-aligned chapters and booklet drafts.",
+    description: "Generates a syllabus-aligned chapter draft",
     emoji: "📘",
   },
   {
@@ -44,8 +44,7 @@ const agents = [
   {
     id: "code-review",
     title: "Pedagogical Code Review Agent",
-    description:
-      "Creates a sample solution and explains a pedagogical code review (demo only).",
+    description: "Creates a sample solution and reviews it.",
     emoji: "💻",
   },
 ] as const;
@@ -137,7 +136,7 @@ export default function Home() {
         </div>
         <p className="max-w-2xl text-sm text-slate-300">
           Choose an agent to build courses, create assignments, and review
-          student work.
+          student work
         </p>
       </header>
 
@@ -149,7 +148,7 @@ export default function Home() {
                 Course agents
               </p>
               <p className="mt-2 text-sm text-slate-300">
-                Add or remove agents for this specific course.
+                Add or remove agents for this specific course
               </p>
             </div>
             <button

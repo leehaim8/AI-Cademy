@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session, SessionRun } from "../types/course";
 import {
   SESSION_STORE_CHANGED_EVENT,
   deleteSession,
   listRuns,
-  listRunsForCourseAgent,
   listSessions,
 } from "../lib/sessionStore";
 
@@ -26,7 +25,6 @@ export default function SessionsPanel({
   );
   const [storeVersion, setStoreVersion] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [runs, setRuns] = useState<SessionRun[]>([]);
 
   useEffect(() => {
     const handleStoreChanged = () => {
@@ -71,42 +69,6 @@ export default function SessionsPanel({
       ? selectedSessionId
       : null;
 
-  const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === effectiveSelectedSessionId) ?? null,
-    [sessions, effectiveSelectedSessionId],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRuns() {
-      if (!courseId || !agentKey) {
-        setRuns([]);
-        return;
-      }
-
-      try {
-        const nextRuns = await listRunsForCourseAgent(courseId, agentKey);
-        if (!cancelled) {
-          setRuns(nextRuns);
-        }
-      } catch {
-        if (!cancelled) {
-          setRuns([]);
-        }
-      }
-    }
-
-    void loadRuns();
-    return () => {
-      cancelled = true;
-    };
-  }, [agentKey, courseId, storeVersion]);
-
-  const runsHeading = selectedSession
-    ? `${selectedSession.title} · showing all runs`
-    : "Showing all runs";
-
   async function handleSelectSession(sessionId: string) {
     setSelectedSessionId(sessionId);
     try {
@@ -144,8 +106,7 @@ export default function SessionsPanel({
   }
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
+    <div className="h-full rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-100">Sessions</h2>
         </div>
@@ -235,54 +196,6 @@ export default function SessionsPanel({
             ))
           )}
         </div>
-      </div>
-
-      <div className="flex-1 rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-100">Run history</h3>
-          <p className="text-xs text-slate-400">{runsHeading}</p>
-        </div>
-        <div className="booklet-scroll mt-3 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">
-          {runs.length === 0 ? (
-            <p className="text-xs text-slate-400">
-              No runs yet.
-            </p>
-          ) : (
-            runs.map((run) => (
-              <button
-                key={run.id}
-                type="button"
-                onClick={() => onRunSelect?.(run)}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-left hover:border-slate-600"
-              >
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] text-slate-500">
-                    {new Date(run.created_at).toLocaleTimeString()}
-                  </span>
-                  <span className="text-xs text-slate-200">
-                    {run.status === "success"
-                      ? "Run completed"
-                      : run.status === "error"
-                        ? "Run failed"
-                        : "Running"}
-                  </span>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                    run.status === "success"
-                      ? "bg-emerald-500/20 text-emerald-200"
-                      : run.status === "error"
-                        ? "bg-rose-500/20 text-rose-200"
-                        : "bg-slate-700/40 text-slate-300"
-                  }`}
-                >
-                  {run.status}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
     </div>
   );
 }

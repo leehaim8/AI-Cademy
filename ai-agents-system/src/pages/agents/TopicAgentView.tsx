@@ -71,6 +71,7 @@ export default function TopicAgentView({
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
   const [view, setView] = useState<"suggested" | "review">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
+  const [topicSearch, setTopicSearch] = useState("");
   const seminarTopicError =
     errorMessage === "Please enter a seminar topic before extracting topics.";
 
@@ -86,10 +87,30 @@ export default function TopicAgentView({
     [reviewTopics],
   );
 
+  const normalizedTopicSearch = topicSearch.trim().toLowerCase();
+
+  const filteredSuggestedTopics = useMemo(() => {
+    if (!normalizedTopicSearch) {
+      return topics;
+    }
+
+    return topics.filter((topic) => topic.toLowerCase().includes(normalizedTopicSearch));
+  }, [normalizedTopicSearch, topics]);
+
+  const filteredReviewTopics = useMemo(() => {
+    if (!normalizedTopicSearch) {
+      return reviewTopics;
+    }
+
+    return reviewTopics.filter((topic) =>
+      topic.title.toLowerCase().includes(normalizedTopicSearch),
+    );
+  }, [normalizedTopicSearch, reviewTopics]);
+
   const fileLabel = useMemo(() => {
     if (uploadedFiles.length === 0) return null;
     if (uploadedFiles.length === 1) return uploadedFiles[0].name;
-    return `${uploadedFiles.length} files selected`;
+    return `${uploadedFiles.length} file selected`;
   }, [uploadedFiles]);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -350,6 +371,7 @@ export default function TopicAgentView({
     setCurrentRunId(null);
     setTopics(restoredTopics);
     setReviewTopics(restoredReviewTopics);
+    setTopicSearch("");
     setHasSubmitted(restoredTopics.length > 0);
     setErrorMessage(null);
     resetSaveState();
@@ -370,6 +392,7 @@ export default function TopicAgentView({
     setSaveState("idle");
     setView("suggested");
     setReviewTopics([]);
+    setTopicSearch("");
   }, [clearSelectionVersion]);
 
   return (
@@ -381,7 +404,7 @@ export default function TopicAgentView({
         backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] flex h-full min-h-[42rem] flex-col gap-4"
       >
         <div className="flex items-center justify-between gap-3 mb-1">
-          <h2 className="text-sm font-semibold text-slate-100">Input material</h2>
+          <h2 className="text-sm font-semibold text-slate-100">Resource</h2>
           <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
             <button
               type="button"
@@ -435,10 +458,10 @@ export default function TopicAgentView({
                 File
               </span>
               <span className="font-medium">
-                {fileLabel || "Drop document files here or click to browse"}
+                {fileLabel || "Drop document file here or click to browse"}
               </span>
               <span className="text-xs text-slate-400">
-                Supports PDF, DOCX, TXT, MD, CSV, JSON, and HTML files.
+                Supports PDF, DOCX, TXT, MD, CSV, JSON, and HTML file types
               </span>
               <input
                 type="file"
@@ -486,10 +509,10 @@ export default function TopicAgentView({
 
         <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
           <span>
-            The extraction now runs on the backend topic agent.
+            The extraction now runs on the backend topic agent
           </span>
           <span>
-            {text.length} chars {inputMode === "file" ? `| ${uploadedFiles.length} files` : ""}
+            {text.length} chars {inputMode === "file" ? `| ${uploadedFiles.length} file` : ""}
           </span>
         </div>
 
@@ -546,8 +569,8 @@ export default function TopicAgentView({
             </h2>
             <p className="text-xs text-slate-400">
               {view === "suggested"
-                ? "Auto-generated topics from the input content."
-                : "Edit topics and save approved ones to the database."}
+                ? "Auto-generated topics from the input content"
+                : "Edit topics and save approved ones to the database"}
             </p>
           </div>
           <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
@@ -576,12 +599,34 @@ export default function TopicAgentView({
           </div>
         </div>
 
+        <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-4 w-4 shrink-0 text-slate-500"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            value={topicSearch}
+            onChange={(e) => setTopicSearch(e.target.value)}
+            placeholder="Search a topic"
+            className="w-full bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
+          />
+        </div>
+
         {view === "suggested" ? (
           !hasSubmitted ? (
             <p className="text-xs text-slate-400">
               Paste some content or upload a text file, then click
-              <span className="font-medium text-sky-300"> Extract topics</span>.
-              Key terms and themes will appear here.
+              <span className="font-medium text-sky-300"> Extract topics</span>
+              . Key terms and themes will appear here
             </p>
           ) : isAnalyzing ? (
             <div className="flex items-center gap-2 text-xs text-sky-200">
@@ -595,12 +640,16 @@ export default function TopicAgentView({
           ) : topics.length === 0 ? (
             <p className="text-xs text-amber-300">
               No topics were returned. Try a longer passage or a different
-              section of your material.
+              section of your material
+            </p>
+          ) : filteredSuggestedTopics.length === 0 ? (
+            <p className="text-xs text-slate-400">
+              No topics match your search
             </p>
           ) : (
             <div className="max-h-[420px] overflow-y-auto pr-1">
               <ul className="flex flex-col gap-3">
-                {topics.map((topic) => (
+                {filteredSuggestedTopics.map((topic) => (
                   <li
                     key={topic}
                     className="flex min-h-[76px] w-full items-start gap-2 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
@@ -614,7 +663,11 @@ export default function TopicAgentView({
           )
         ) : reviewTopics.length === 0 ? (
           <p className="text-xs text-slate-400">
-            No extracted topics to review yet.
+            No extracted topics to review yet
+          </p>
+        ) : filteredReviewTopics.length === 0 ? (
+          <p className="text-xs text-slate-400">
+            No topics match your search
           </p>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -651,10 +704,10 @@ export default function TopicAgentView({
             ) : null}
             <div className="max-h-[420px] overflow-y-auto pr-1">
               <div className="flex flex-col gap-2">
-                {reviewTopics.map((topic) => (
+                {filteredReviewTopics.map((topic) => (
                   <div
                     key={topic.id}
-                    className="grid min-h-[88px] w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
+                    className="flex min-h-[104px] w-full flex-col gap-3 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
                   >
                     <div className="flex min-w-0 items-start gap-3">
                       <input
@@ -693,7 +746,7 @@ export default function TopicAgentView({
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 self-center text-xs">
+                    <div className="flex flex-wrap items-center gap-2 pl-7 text-xs">
                       {topic.isEditing ? (
                         <>
                           <button
@@ -754,7 +807,7 @@ export default function TopicAgentView({
                             }}
                             className="rounded-lg border border-slate-700 px-2 py-0.5 text-[11px] text-slate-200 hover:border-slate-500"
                           >
-                            Edit
+                            Edit topic
                           </button>
                           <button
                             type="button"
@@ -766,7 +819,7 @@ export default function TopicAgentView({
                             }}
                             className="rounded-lg border border-rose-500/60 px-2 py-0.5 text-[11px] text-rose-300 hover:border-rose-400"
                           >
-                            Remove
+                            Remove topic
                           </button>
                         </>
                       )}
@@ -806,8 +859,8 @@ export default function TopicAgentView({
 
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           {view === "suggested"
-            ? "Key topics are extracted from your material. You can send them to the Syllabus Builder or adjust them manually there."
-            : "Use this review step to approve, edit, or remove topics before sharing with colleagues."}
+            ? "Key topics are extracted from your material. You can send them to the Syllabus Builder or adjust them manually there"
+            : "Use this review step to approve, edit, or remove topics before sharing with colleagues"}
         </p>
       </div>
     </div>

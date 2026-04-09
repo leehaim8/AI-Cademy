@@ -19,12 +19,12 @@ export const agentCatalog: AgentCatalogItem[] = [
   {
     key: "syllabus",
     name: "Syllabus Builder",
-    description: "Builds structured course syllabi automatically.",
+    description: "Structured course syllabi automatically",
   },
   {
     key: "booklet",
     name: "Course Booklet Generator",
-    description: "Generates syllabus-aligned chapters and booklet drafts.",
+    description: "Generates a syllabus-aligned chapter draft",
   },
   {
     key: "homework",
@@ -39,8 +39,7 @@ export const agentCatalog: AgentCatalogItem[] = [
   {
     key: "code_review",
     name: "Pedagogical Code Review Agent",
-    description:
-      "Creates a sample solution and explains a pedagogical code review (demo only).",
+    description: "Creates a sample solution and reviews it.",
   },
 ];
 
