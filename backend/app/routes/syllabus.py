@@ -16,6 +16,7 @@ def generate_syllabus_route(
         weeks = generate_syllabus(
             topics=payload.topics,
             num_weeks=payload.num_weeks,
+            weekly_hours=payload.weekly_hours,
             audience=payload.audience,
             constraints=payload.constraints,
         )

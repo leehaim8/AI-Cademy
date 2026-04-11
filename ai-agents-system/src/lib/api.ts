@@ -59,6 +59,7 @@ export type TopicExtractionRun = {
 export type SyllabusGenerationPayload = {
   topics: string[];
   num_weeks: number;
+  weekly_hours: number;
   audience: string;
   constraints?: string;
 };

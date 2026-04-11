@@ -18,7 +18,7 @@ export const agentCatalog: AgentCatalogItem[] = [
   },
   {
     key: "syllabus",
-    name: "Syllabus Builder",
+    name: "Syllabus Flow Agent",
     description: "Structured course syllabi automatically",
   },
   {

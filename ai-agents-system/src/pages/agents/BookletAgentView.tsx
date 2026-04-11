@@ -230,7 +230,7 @@ export default function BookletAgentView({
         });
       } else {
         throw new Error(
-          "Add a syllabus file, paste syllabus text, or import weeks from the Syllabus Builder.",
+          "Add a syllabus file, paste syllabus text, or import weeks from the Syllabus Flow Agent.",
         );
       }
 
@@ -287,11 +287,16 @@ export default function BookletAgentView({
       setStageStartedAt(null);
 
       if (courseId) {
-        const sessionTitle = `Chapter: ${result.chapter_name}`;
+        const timestampLabel = new Date().toLocaleString();
+        const fileName =
+          files.length > 0 ? files[0]?.name || "Unknown file" : "None";
+        const sessionTitle = `Chapter: ${result.chapter_name} · ${timestampLabel} · ${fileName}`;
         const notes = [
           config.courseName ? `Course: ${config.courseName}` : "",
           `Language: ${config.outputLanguage}`,
           `Tone: ${config.tone}`,
+          `Timestamp: ${timestampLabel}`,
+          `File: ${fileName}`,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -310,6 +315,8 @@ export default function BookletAgentView({
                 : importedWeeks.length
                   ? "weeks"
                   : "unknown",
+            timestamp: timestampLabel,
+            uploaded_file: files.length > 0 ? files[0]?.name || "" : "",
             outline: effectiveOutline,
           },
           {
@@ -611,7 +618,7 @@ export default function BookletAgentView({
                 <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-xs text-violet-100">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="font-semibold">Imported from Syllabus Builder</p>
+                      <p className="font-semibold">Imported from Syllabus Flow Agent</p>
                       <p className="mt-1 text-violet-200/90">
                         {canUseImported
                           ? `Loaded ${importedWeeks.length} weeks and ${importedTopics.length} topics into the outline preview`
@@ -703,7 +710,7 @@ export default function BookletAgentView({
                 <div className="rounded-xl border border-sky-400/60 bg-sky-500/10 px-3 py-2 text-xs text-sky-100 md:col-span-2">
                   <p className="text-sky-100 font-semibold">Syllabus sources</p>
                   <p className="mt-1 text-sky-100/90">
-                    Use weeks from the Syllabus Builder, upload a file, or paste
+                    Use weeks from the Syllabus Flow Agent, upload a file, or paste
                     the syllabus text
                   </p>
                 </div>

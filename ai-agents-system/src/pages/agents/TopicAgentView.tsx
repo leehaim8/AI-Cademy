@@ -261,7 +261,7 @@ export default function TopicAgentView({
       const availability = getAgentAvailability(courseId);
       if (!availability.syllabus) {
         const shouldEnable = window.confirm(
-          'Syllabus Builder is not added to this course yet. Do you want to add it now?',
+          'Syllabus Flow Agent is not added to this course yet. Do you want to add it now?',
         );
         if (!shouldEnable) {
           return;
@@ -288,8 +288,23 @@ export default function TopicAgentView({
       return;
     }
 
-    const sessionTitle = seminarTopic.trim() || "Topic extraction output";
-    const notes = "Topic extraction output";
+    const now = new Date();
+    const timestampLabel = now.toLocaleString();
+    const fileNames = uploadedFiles.map((file) => file.name).filter(Boolean);
+    const fileLabel =
+      fileNames.length === 0
+        ? "None"
+        : fileNames.length === 1
+          ? fileNames[0]
+          : `${fileNames.length} files`;
+    const sessionTitle = `${
+      seminarTopic.trim() || "Topic extraction output"
+    } · ${timestampLabel} · ${fileLabel}`;
+    const notes = [
+      "Topic extraction output",
+      `Timestamp: ${timestampLabel}`,
+      `Files: ${fileNames.length > 0 ? fileNames.join(", ") : "None"}`,
+    ].join("\n");
 
     try {
       const session = await createSession(courseId, agentKey, sessionTitle, notes);
@@ -300,6 +315,8 @@ export default function TopicAgentView({
         seminar_topic: seminarTopic.trim(),
         input_mode: inputMode,
         raw_text: text,
+        timestamp: timestampLabel,
+        uploaded_files: fileNames,
       },
       {
         topics,
@@ -846,7 +863,7 @@ export default function TopicAgentView({
                 onClick={handleNavigateToSyllabus}
                 className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto"
               >
-                <span>Use topics in Syllabus Builder</span>
+                <span>Use topics in Syllabus Flow Agent</span>
               </button>
             </div>
             {saveMessage ? (
@@ -859,7 +876,7 @@ export default function TopicAgentView({
 
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
           {view === "suggested"
-            ? "Key topics are extracted from your material. You can send them to the Syllabus Builder or adjust them manually there"
+            ? "Key topics are extracted from your material. You can send them to the Syllabus Flow Agent or adjust them manually there"
             : "Use this review step to approve, edit, or remove topics before sharing with colleagues"}
         </p>
       </div>

@@ -111,6 +111,7 @@ class TopicExtractionEditRequest(BaseModel):
 class SyllabusGenerationRequest(BaseModel):
     topics: list[str] = Field(default_factory=list, min_length=1)
     num_weeks: int = Field(default=12, ge=1, le=52)
+    weekly_hours: int = Field(default=3, ge=1, le=20)
     audience: str = Field(default="University students", min_length=2, max_length=200)
     constraints: Optional[str] = Field(default=None, max_length=2000)
 

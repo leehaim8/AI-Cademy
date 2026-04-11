@@ -12,6 +12,7 @@ type SessionsPanelProps = {
   agentKey: string;
   onRunSelect?: (run: SessionRun | null) => void;
   emptyHint?: string;
+  title?: string;
 };
 
 export default function SessionsPanel({
@@ -19,6 +20,7 @@ export default function SessionsPanel({
   agentKey,
   onRunSelect,
   emptyHint,
+  title = "Temporary",
 }: SessionsPanelProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
@@ -108,7 +110,7 @@ export default function SessionsPanel({
   return (
     <div className="h-full rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-slate-100">Sessions</h2>
+          <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
         </div>
 
         <div className="booklet-scroll mt-4 flex max-h-[14rem] flex-col gap-2 overflow-y-auto pr-1 text-xs text-slate-300">

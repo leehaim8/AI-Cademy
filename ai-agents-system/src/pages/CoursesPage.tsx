@@ -104,9 +104,6 @@ export default function CoursesPage() {
         <h1 className="text-3xl md:text-4xl font-semibold text-slate-50 tracking-tight">
           {headline}
         </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Courses are the starting point for your agent workspaces
-        </p>
       </header>
 
       <div className="mb-8 rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
@@ -209,12 +206,17 @@ export default function CoursesPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-lg font-semibold text-slate-50">
-                    {course.name}
-                  </h2>
-                  <div className="mt-2 flex flex-col gap-1 text-xs text-slate-400">
-                    {course.code ? <span>Code: {course.code}</span> : null}
-                    {course.term ? <span>Term: {course.term}</span> : null}
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-lg font-semibold text-slate-50">
+                      {course.name}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(course)}
+                      className="rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] text-slate-200 hover:border-slate-500"
+                    >
+                      Edit
+                    </button>
                   </div>
                 </>
               )}
@@ -244,13 +246,6 @@ export default function CoursesPage() {
                     className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-slate-500"
                   >
                     Open course dashboard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStartEdit(course)}
-                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-slate-500"
-                  >
-                    Edit
                   </button>
                 </div>
               )}

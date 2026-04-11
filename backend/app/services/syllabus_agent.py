@@ -219,6 +219,7 @@ class WeeklyConsolidationAgent:
         audience: str,
         main_subjects: list[str],
         target_weeks: int,
+        hours_per_week: int,
         constraints: Optional[str] = None,
     ) -> ConsolidatedSyllabus:
         subjects_text = "\n".join(f"- {topic}" for topic in main_subjects)
@@ -230,6 +231,7 @@ Group related main subjects into weekly clusters.
 
         user = f"""
 Audience: {audience}
+Hours per week: {hours_per_week}
 Constraints: {constraints or "None"}
 
 Main subjects:
@@ -321,6 +323,7 @@ def normalize_consolidated_weeks(
 def generate_syllabus(
     topics: list[str],
     num_weeks: int,
+    weekly_hours: int,
     audience: str,
     constraints: Optional[str] = None,
 ) -> list[dict[str, object]]:
@@ -328,7 +331,18 @@ def generate_syllabus(
     if not cleaned_topics:
         return []
 
-    config = CourseConfig(num_weeks=num_weeks)
+    if weekly_hours <= 2:
+        max_topics_per_week = 2
+    elif weekly_hours <= 4:
+        max_topics_per_week = 3
+    else:
+        max_topics_per_week = 4
+
+    config = CourseConfig(
+        num_weeks=num_weeks,
+        hours_per_week=weekly_hours,
+        max_topics_per_week=max_topics_per_week,
+    )
     planner = FlowCreatorOpenAIAgent(config)
     planner.add_topics(cleaned_topics)
 
@@ -341,6 +355,7 @@ def generate_syllabus(
         audience=audience,
         main_subjects=unique_ordered_subjects,
         target_weeks=num_weeks,
+        hours_per_week=weekly_hours,
         constraints=constraints,
     )
     final_weeks = normalize_consolidated_weeks(

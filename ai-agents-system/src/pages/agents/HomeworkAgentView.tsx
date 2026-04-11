@@ -503,15 +503,24 @@ export default function HomeworkAgentView({
       return;
     }
 
-    const sessionTitle =
-      importedChapter?.title?.trim() || "Homework output";
+    const timestamp = new Date();
+    const timestampLabel = timestamp.toLocaleString();
+    const fileName =
+      inputMode === "file" ? uploadedFileName || "Unknown file" : "None";
+    const sessionTitle = `${
+      importedChapter?.title?.trim() || "Homework output"
+    } · ${timestampLabel} · ${fileName}`;
 
     try {
       const session = await createSession(
         courseId,
         agentKey,
         sessionTitle,
-        "Homework output",
+        [
+          "Homework output",
+          `Timestamp: ${timestampLabel}`,
+          `File: ${fileName}`,
+        ].join("\n"),
       );
 
       await createRun(
@@ -526,6 +535,8 @@ export default function HomeworkAgentView({
         points_per_question: basePoints,
         mcq_option_count: mcqOptionCount,
         mcq_correct_count: mcqCorrectCount,
+        timestamp: timestampLabel,
+        uploaded_file: inputMode === "file" ? uploadedFileName || "" : "",
       },
       {
         questions,
@@ -828,7 +839,7 @@ export default function HomeworkAgentView({
 
             <div className="rounded-xl border border-slate-800/60 bg-slate-950/25 p-3.5">
               <label className="block text-sm font-semibold text-slate-100">
-                Base difficulty
+                Difficulty
               </label>
               <p className="mt-1 text-[11px] text-slate-500">
                 The generator may still rate each question individually

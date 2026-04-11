@@ -18,7 +18,7 @@ const agents = [
   },
   {
     id: "syllabus",
-    title: "Syllabus Builder",
+    title: "Syllabus Flow Agent",
     description: "Structured course syllabi automatically",
     emoji: "📚",
   },

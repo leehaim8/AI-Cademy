@@ -14,7 +14,7 @@ const agentRegistry = {
     Component: TopicAgentView,
   },
   syllabus: {
-    title: "Syllabus Builder",
+    title: "Syllabus Flow Agent",
     description:
       "Sketch your course modules, learning outcomes and assessments in one structured workspace.",
     Component: SyllabusAgentView,

@@ -39,7 +39,7 @@ function buildMockReview(
 
   if (criteria.trim()) {
     strengths.push(
-      "You provided clear evaluation criteria, which helps focus the feedback.",
+      "You provided clear grading criteria, which helps focus the feedback.",
     );
   } else {
     improvements.push(
@@ -152,7 +152,7 @@ export default function EvaluationAgentView() {
 
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
-              <span>Evaluation criteria / rubric</span>
+              <span>Grading criteria / rubric</span>
               <span className="text-slate-500">What does a good answer look like?</span>
             </div>
             <textarea
@@ -217,7 +217,7 @@ export default function EvaluationAgentView() {
       >
         <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
           <span className="text-base">📝</span>
-          Automated homework review
+          Automated homework grading
         </h2>
 
         {!hasSubmitted ? (

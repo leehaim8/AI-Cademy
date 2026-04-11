@@ -56,6 +56,7 @@ export default function SyllabusAgentView({
   const [manualTopic, setManualTopic] = useState("");
   const [manualTopics, setManualTopics] = useState<string[]>([]);
   const [weeks, setWeeks] = useState(12);
+  const [weeklyHours, setWeeklyHours] = useState(3);
   const [audience, setAudience] = useState("");
   const [constraints, setConstraints] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -100,6 +101,7 @@ export default function SyllabusAgentView({
       const result = await generateSyllabus({
         topics,
         num_weeks: weeks,
+        weekly_hours: weeklyHours,
         audience: audience.trim() || "University students",
         constraints: constraints.trim() || undefined,
       });
@@ -366,12 +368,16 @@ export default function SyllabusAgentView({
     }
 
     const timestamp = new Date();
-    const sessionTitle = `Syllabus ${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString([], {
+    const timestampLabel = `${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     })}`;
+    const sessionTitle = `Syllabus ${timestampLabel} · None`;
     const notesParts = [
       `Audience: ${audience.trim() || "University students"}`,
+      `Hours/week: ${weeklyHours}`,
+      `Timestamp: ${timestampLabel}`,
+      "Files: None",
       constraints.trim() ? `Constraints: ${constraints.trim()}` : "",
     ].filter(Boolean);
 
@@ -388,8 +394,11 @@ export default function SyllabusAgentView({
       {
         topics,
         num_weeks: weeks,
+        weekly_hours: weeklyHours,
         audience: audience.trim() || "University students",
         constraints: constraints.trim() || null,
+        timestamp: timestampLabel,
+        uploaded_files: [],
       },
       {
         weeks: weekPlan,
@@ -421,6 +430,7 @@ export default function SyllabusAgentView({
         ? (selectedRun.input_data as {
             topics?: string[];
             num_weeks?: number;
+            weekly_hours?: number;
             audience?: string;
             constraints?: string | null;
           })
@@ -439,6 +449,10 @@ export default function SyllabusAgentView({
 
     if (typeof inputData?.num_weeks === "number") {
       setWeeks(inputData.num_weeks);
+    }
+
+    if (typeof inputData?.weekly_hours === "number") {
+      setWeeklyHours(inputData.weekly_hours);
     }
 
     if (typeof inputData?.audience === "string") {
@@ -464,6 +478,7 @@ export default function SyllabusAgentView({
     setManualTopic("");
     setManualTopics([]);
     setWeeks(12);
+    setWeeklyHours(3);
     setAudience("");
     setConstraints("");
     setIsGenerating(false);
@@ -666,6 +681,23 @@ export default function SyllabusAgentView({
               max={24}
               value={weeks}
               onChange={(e) => setWeeks(Number(e.target.value) || 1)}
+              className="w-full cursor-pointer accent-sky-500"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 text-[11px] text-slate-300">
+            <div className="flex items-center justify-between">
+              <span>Weekly hours</span>
+              <span className="text-sky-300 font-semibold">
+                {weeklyHours} hours/week
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={12}
+              value={weeklyHours}
+              onChange={(e) => setWeeklyHours(Number(e.target.value) || 1)}
               className="w-full cursor-pointer accent-sky-500"
             />
           </div>

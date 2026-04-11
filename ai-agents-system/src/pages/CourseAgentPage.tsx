@@ -16,7 +16,7 @@ const agentViews = {
     Component: TopicAgentView,
   },
   syllabus: {
-    name: "Syllabus Builder",
+    name: "Syllabus Flow Agent",
     Component: SyllabusAgentView,
   },
   homework: {
@@ -49,6 +49,14 @@ export default function CourseAgentPage() {
   const agentMeta = agentCatalog.find(
     (entry) => entry.key === agentKey.replace("-", "_"),
   );
+  const sessionsTitleMap: Record<AgentKey, string> = {
+    topic: "Temporary topic list",
+    syllabus: "Temporary syllabus flow",
+    homework: "Temporary homework set",
+    evaluation: "temorary grading",
+    booklet: "Temporary course booklet",
+    "code-review": "Temporary code review",
+  };
 
   const handleRunSelect = (run: SessionRun | null) => {
     setSelectedRun(run);
@@ -113,6 +121,7 @@ export default function CourseAgentPage() {
             <SessionsPanel
               courseId={courseId}
               agentKey={agentKey}
+              title={sessionsTitleMap[normalizedKey]}
               onRunSelect={handleRunSelect}
               emptyHint={
                 normalizedKey === "booklet"
