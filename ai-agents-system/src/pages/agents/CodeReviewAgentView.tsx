@@ -91,7 +91,7 @@ const mockGenerateStudentCode = async (
 
 const mockRunCodeReview = async (
   config: CodeReviewConfig,
-  code: string,
+  _code: string,
 ): Promise<ReviewResult> => {
   await randomDelay(800, 1600);
 
@@ -236,7 +236,6 @@ export default function CodeReviewAgentView() {
 
   const codeReady =
     agentState === "code_ready" || agentState === "reviewing" || agentState === "reviewed";
-  const reviewReady = agentState === "reviewed";
 
   return (
     <div className="flex flex-col gap-6">

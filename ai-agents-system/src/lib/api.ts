@@ -1,5 +1,5 @@
 import type { AuthResponse, User } from "../types/auth";
-import type { Session, SessionRun } from "../types/course";
+import type { Course, Session, SessionRun } from "../types/course";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -219,6 +219,76 @@ export async function fetchUser(userId: string): Promise<User> {
 
   const data = (await res.json()) as { user: User };
   return data.user;
+}
+
+export async function fetchCourses(userId?: string): Promise<Course[]> {
+  const url = new URL(`${API_BASE_URL}/courses`);
+  if (userId) {
+    url.searchParams.set("user_id", userId);
+  }
+
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { courses: Course[] };
+  return data.courses;
+}
+
+export async function fetchCourse(courseId: string): Promise<Course> {
+  const res = await fetch(`${API_BASE_URL}/courses/${courseId}`);
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { course: Course };
+  return data.course;
+}
+
+export async function createBackendCourse(payload: {
+  name: string;
+  owner_user_id: string;
+  code?: string;
+  term?: string;
+}): Promise<Course> {
+  const res = await fetch(`${API_BASE_URL}/courses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { course: Course };
+  return data.course;
+}
+
+export async function updateBackendCourse(
+  courseId: string,
+  payload: { name: string; code?: string; term?: string },
+): Promise<Course> {
+  const res = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  const data = (await res.json()) as { course: Course };
+  return data.course;
+}
+
+export async function deleteBackendCourse(courseId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
 }
 
 export async function fetchSessions(

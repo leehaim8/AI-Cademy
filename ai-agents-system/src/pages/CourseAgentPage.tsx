@@ -7,7 +7,8 @@ import EvaluationAgentView from "./agents/EvaluationAgentView";
 import BookletAgentView from "./agents/BookletAgentView";
 import CodeReviewAgentView from "./agents/CodeReviewAgentView";
 import SessionsPanel from "../components/SessionsPanel";
-import { agentCatalog, getCourse } from "../lib/courseStore";
+import { useCourse } from "../hooks/useCourse";
+import { agentCatalog } from "../lib/courseStore";
 import type { SessionRun } from "../types/course";
 
 const agentViews = {
@@ -45,7 +46,7 @@ export default function CourseAgentPage() {
   const [clearSelectionVersion, setClearSelectionVersion] = useState(0);
   const normalizedKey = agentKey.replace("_", "-") as AgentKey;
   const agent = agentViews[normalizedKey];
-  const course = courseId ? getCourse(courseId) : null;
+  const { course } = useCourse(courseId);
   const agentMeta = agentCatalog.find(
     (entry) => entry.key === agentKey.replace("-", "_"),
   );

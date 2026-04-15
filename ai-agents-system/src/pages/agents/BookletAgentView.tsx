@@ -13,10 +13,10 @@ import {
   clearBookletTransfer,
   loadBookletTransfer,
 } from "../../lib/agentTransferStore";
+import { useCourse } from "../../hooks/useCourse";
 import {
   enableAgentForCourse,
   getAgentAvailability,
-  getCourse,
 } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
@@ -63,6 +63,7 @@ const defaultConfig: BookletConfig = {
 
 type BookletAgentViewProps = {
   selectedRun?: SessionRun | null;
+  onClearSelectedRun?: () => void;
   clearSelectionVersion?: number;
 };
 
@@ -75,12 +76,13 @@ function outlineFromSyllabus(weeks: SyllabusWeek[]): BookletOutlineUnit[] {
 
 export default function BookletAgentView({
   selectedRun = null,
+  onClearSelectedRun: _onClearSelectedRun,
   clearSelectionVersion = 0,
 }: BookletAgentViewProps) {
   const { courseId = "", agentKey = "", id = "" } = useParams();
   const navigate = useNavigate();
   const location = useLocation() as { state?: BookletLocationState };
-  const course = courseId ? getCourse(courseId) : null;
+  const { course } = useCourse(courseId);
   const [config, setConfig] = useState<BookletConfig>(defaultConfig);
   const [files, setFiles] = useState<File[]>([]);
   const [syllabusText, setSyllabusText] = useState<string>("");

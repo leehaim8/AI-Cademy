@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AgentCard from "../components/AgentCard";
+import { useCourse } from "../hooks/useCourse";
 import {
   agentCatalog,
   getAgentAvailability,
-  getCourse,
   listEnabledAgents,
   setEnabledAgents,
 } from "../lib/courseStore";
@@ -55,10 +55,7 @@ export default function Home() {
     courseId ? getAgentAvailability(courseId) : null,
   );
   const [showManager, setShowManager] = useState(false);
-  const course = useMemo(
-    () => (courseId ? getCourse(courseId) : null),
-    [courseId],
-  );
+  const { course } = useCourse(courseId);
   const headline = course ? `Agents for ${course.name}` : "Choose an agent";
 
   const enabledAgents = useMemo(() => {

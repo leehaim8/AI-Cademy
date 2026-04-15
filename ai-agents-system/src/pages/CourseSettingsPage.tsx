@@ -5,12 +5,12 @@ import {
   listEnabledAgents,
   setEnabledAgents,
 } from "../lib/courseStore";
-import { getCourse } from "../lib/courseStore";
+import { useCourse } from "../hooks/useCourse";
 
 export default function CourseSettingsPage() {
   const navigate = useNavigate();
   const { courseId = "" } = useParams();
-  const course = courseId ? getCourse(courseId) : null;
+  const { course } = useCourse(courseId);
   const [enabled, setEnabled] = useState<Record<string, boolean>>(
     courseId ? listEnabledAgents(courseId) : {},
   );

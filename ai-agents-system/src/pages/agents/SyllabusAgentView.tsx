@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { generateSyllabus, type SyllabusWeek } from "../../lib/api";
 import { saveBookletTransfer } from "../../lib/agentTransferStore";
 import { getCurrentUser } from "../../lib/authStorage";
+import { useCourse } from "../../hooks/useCourse";
 import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
@@ -24,6 +25,14 @@ function normalizeTopics(raw: string): string[] {
     .filter(Boolean);
 }
 
+function toSafeFileSegment(value: string): string {
+  return value
+    .trim()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
 export default function SyllabusAgentView({
   selectedRun = null,
   onClearSelectedRun,
@@ -31,6 +40,7 @@ export default function SyllabusAgentView({
 }: SyllabusAgentViewProps) {
   const navigate = useNavigate();
   const { courseId = "", agentKey = "" } = useParams();
+  const { course } = useCourse(courseId);
   const currentUser = getCurrentUser();
   const instructorName = currentUser?.full_name ?? "";
   const location = useLocation() as {
@@ -122,6 +132,18 @@ export default function SyllabusAgentView({
     if (weekPlan.length === 0) return;
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const now = new Date();
+    const datePart = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+    const timePart = [
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0"),
+    ].join("-");
+    const courseSegment = toSafeFileSegment(course?.name ?? "") || "ai-cademy-syllabus";
+    const pdfFileName = `${courseSegment}-${datePart}-${timePart}.pdf`;
 
     const buildDocument = (logoDataUrl?: string) => {
       const marginLeft = 56;
@@ -174,8 +196,7 @@ export default function SyllabusAgentView({
         { align: "center" },
       );
 
-      const today = new Date();
-      doc.text(`Generated: ${today.toLocaleDateString()}`, centerX, y + lineHeight, {
+      doc.text(`Generated: ${now.toLocaleDateString()}`, centerX, y + lineHeight, {
         align: "center",
       });
 
@@ -292,7 +313,7 @@ export default function SyllabusAgentView({
         y += rowHeight;
       });
 
-      doc.save("ai-cademy-syllabus.pdf");
+      doc.save(pdfFileName);
     };
 
     const img = new Image();
@@ -372,7 +393,7 @@ export default function SyllabusAgentView({
       hour: "2-digit",
       minute: "2-digit",
     })}`;
-    const sessionTitle = `Syllabus ${timestampLabel} · None`;
+    const sessionTitle = `Syllabus ${timestampLabel}`;
     const notesParts = [
       `Audience: ${audience.trim() || "University students"}`,
       `Hours/week: ${weeklyHours}`,

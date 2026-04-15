@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useCourse } from "../../hooks/useCourse";
 import {
   extractTopics,
   extractTopicsWithFiles,
@@ -34,6 +35,49 @@ function toReviewTopics(values: string[]): ReviewTopic[] {
   }));
 }
 
+function buildTopicExplanation(topic: string, courseName?: string): string {
+  const normalizedTopic = topic.trim();
+  const lowerTopic = normalizedTopic.toLowerCase();
+  const context = courseName?.trim()
+    ? ` within the course ${courseName.trim()}`
+    : "";
+
+  if (
+    lowerTopic.includes("intro") ||
+    lowerTopic.includes("overview") ||
+    lowerTopic.includes("foundation") ||
+    lowerTopic.includes("basics")
+  ) {
+    return `${normalizedTopic} introduces the core ideas, vocabulary, and framing needed to understand later material${context}.`;
+  }
+
+  if (
+    lowerTopic.includes("design") ||
+    lowerTopic.includes("architecture") ||
+    lowerTopic.includes("structure")
+  ) {
+    return `${normalizedTopic} focuses on how the main parts are organized, why they are structured that way, and the tradeoffs behind those choices${context}.`;
+  }
+
+  if (
+    lowerTopic.includes("analysis") ||
+    lowerTopic.includes("performance") ||
+    lowerTopic.includes("evaluation")
+  ) {
+    return `${normalizedTopic} examines how to measure, compare, and reason about effectiveness, limitations, or efficiency${context}.`;
+  }
+
+  if (
+    lowerTopic.includes("implementation") ||
+    lowerTopic.includes("application") ||
+    lowerTopic.includes("practice")
+  ) {
+    return `${normalizedTopic} emphasizes how the concept is applied in realistic work, examples, or hands-on problem solving${context}.`;
+  }
+
+  return `${normalizedTopic} is a key concept area${context}, covering its main purpose, the essential ideas behind it, and how it connects to the rest of the material.`;
+}
+
 type TopicAgentViewProps = {
   selectedRun?: SessionRun | null;
   onClearSelectedRun?: () => void;
@@ -58,6 +102,7 @@ export default function TopicAgentView({
 }: TopicAgentViewProps) {
   const navigate = useNavigate();
   const { courseId = "", agentKey = "" } = useParams();
+  const { course } = useCourse(courseId);
   const [seminarTopic, setSeminarTopic] = useState("");
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [text, setText] = useState("");
@@ -72,6 +117,8 @@ export default function TopicAgentView({
   const [view, setView] = useState<"suggested" | "review">("suggested");
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
   const [topicSearch, setTopicSearch] = useState("");
+  const resolvedSeminarTopic = (course?.name ?? seminarTopic).trim();
+  const isCourseTopicContext = Boolean(courseId && course?.name?.trim());
   const seminarTopicError =
     errorMessage === "Please enter a seminar topic before extracting topics.";
 
@@ -164,7 +211,7 @@ export default function TopicAgentView({
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!seminarTopic.trim()) {
+    if (!resolvedSeminarTopic) {
       setHasSubmitted(true);
       setErrorMessage("Please enter a seminar topic before extracting topics.");
       setSaveMessage(null);
@@ -185,14 +232,14 @@ export default function TopicAgentView({
       const result =
         inputMode === "file"
           ? await extractTopicsWithFiles({
-              seminar_topic: seminarTopic.trim(),
+              seminar_topic: resolvedSeminarTopic,
               files: uploadedFiles.map((item) => item.file),
               raw_text: hasTextInput ? text : undefined,
               include_summary: false,
               similarity_threshold: 0.68,
             })
           : await extractTopics({
-              seminar_topic: seminarTopic.trim(),
+              seminar_topic: resolvedSeminarTopic,
               raw_text: text,
               include_summary: false,
               similarity_threshold: 0.68,
@@ -298,7 +345,7 @@ export default function TopicAgentView({
           ? fileNames[0]
           : `${fileNames.length} files`;
     const sessionTitle = `${
-      seminarTopic.trim() || "Topic extraction output"
+      resolvedSeminarTopic || "Topic extraction output"
     } · ${timestampLabel} · ${fileLabel}`;
     const notes = [
       "Topic extraction output",
@@ -312,7 +359,7 @@ export default function TopicAgentView({
       await createRun(
       session.id,
       {
-        seminar_topic: seminarTopic.trim(),
+        seminar_topic: resolvedSeminarTopic,
         input_mode: inputMode,
         raw_text: text,
         timestamp: timestampLabel,
@@ -357,21 +404,21 @@ export default function TopicAgentView({
       ? outputData.topics.filter(Boolean)
       : [];
     const restoredReviewTopics = Array.isArray(outputData?.review_topics)
-      ? outputData.review_topics
-          .map((topic) => {
-            const title = typeof topic?.title === "string" ? topic.title.trim() : "";
-            if (!title) {
-              return null;
-            }
-            return {
-              id: crypto.randomUUID(),
-              title,
-              approved: topic?.approved ?? true,
-              isEditing: false,
-              draft: title,
-            };
-          })
-          .filter((topic): topic is ReviewTopic => topic !== null)
+      ? outputData.review_topics.reduce<ReviewTopic[]>((acc, topic) => {
+          const title = typeof topic?.title === "string" ? topic.title.trim() : "";
+          if (!title) {
+            return acc;
+          }
+
+          acc.push({
+            id: crypto.randomUUID(),
+            title,
+            approved: topic?.approved ?? true,
+            isEditing: false,
+            draft: title,
+          });
+          return acc;
+        }, [])
       : toReviewTopics(restoredTopics);
 
     if (typeof inputData?.seminar_topic === "string" && inputData.seminar_topic.trim()) {
@@ -448,16 +495,31 @@ export default function TopicAgentView({
           </div>
         </div>
 
-        <input
-          value={seminarTopic}
-          onChange={(e) => setSeminarTopic(e.target.value)}
-          placeholder="Seminar topic"
-          className={`w-full rounded-xl border bg-slate-950/60 px-3 py-2 text-sm text-slate-100 shadow-inner placeholder:text-slate-500 focus:outline-none focus:ring-1 ${
-            seminarTopicError
-              ? "border-rose-500/70 focus:border-rose-400 focus:ring-rose-500/40"
-              : "border-slate-800 focus:border-sky-500 focus:ring-sky-500/70"
-          }`}
-        />
+        {isCourseTopicContext ? (
+          <div
+            className={`w-full rounded-xl border bg-slate-950/60 px-3 py-2 text-sm text-slate-100 shadow-inner ${
+              seminarTopicError
+                ? "border-rose-500/70"
+                : "border-slate-800"
+            }`}
+          >
+            <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Course name
+            </span>
+            <p className="mt-1">{resolvedSeminarTopic}</p>
+          </div>
+        ) : (
+          <input
+            value={seminarTopic}
+            onChange={(e) => setSeminarTopic(e.target.value)}
+            placeholder="Seminar topic"
+            className={`w-full rounded-xl border bg-slate-950/60 px-3 py-2 text-sm text-slate-100 shadow-inner placeholder:text-slate-500 focus:outline-none focus:ring-1 ${
+              seminarTopicError
+                ? "border-rose-500/70 focus:border-rose-400 focus:ring-rose-500/40"
+                : "border-slate-800 focus:border-sky-500 focus:ring-sky-500/70"
+            }`}
+          />
+        )}
 
         {inputMode === "text" ? (
           <textarea
@@ -669,10 +731,13 @@ export default function TopicAgentView({
                 {filteredSuggestedTopics.map((topic) => (
                   <li
                     key={topic}
-                    className="flex min-h-[76px] w-full items-start gap-2 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
+                    className="group relative flex min-h-[76px] w-full items-start gap-2 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
                   >
                     <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
                     <span className="leading-relaxed">{topic}</span>
+                    <div className="pointer-events-none absolute left-4 top-full z-20 mt-2 w-[min(18rem,calc(100%-2rem))] rounded-xl border border-slate-700/90 bg-slate-900/95 px-3 py-2 text-[11px] font-normal leading-relaxed text-slate-200 opacity-0 shadow-[0_14px_35px_rgba(2,6,23,0.72)] transition-opacity duration-150 group-hover:opacity-100">
+                      {buildTopicExplanation(topic, course?.name)}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -724,7 +789,7 @@ export default function TopicAgentView({
                 {filteredReviewTopics.map((topic) => (
                   <div
                     key={topic.id}
-                    className="flex min-h-[104px] w-full flex-col gap-3 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
+                    className="group relative flex min-h-[104px] w-full flex-col gap-3 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 text-xs font-medium text-sky-100 shadow-[0_10px_30px_rgba(8,47,73,0.9)]"
                   >
                     <div className="flex min-w-0 items-start gap-3">
                       <input
@@ -763,6 +828,11 @@ export default function TopicAgentView({
                         </span>
                       )}
                     </div>
+                    {!topic.isEditing ? (
+                      <div className="pointer-events-none absolute left-4 top-full z-20 mt-2 w-[min(18rem,calc(100%-2rem))] rounded-xl border border-slate-700/90 bg-slate-900/95 px-3 py-2 text-[11px] font-normal leading-relaxed text-slate-200 opacity-0 shadow-[0_14px_35px_rgba(2,6,23,0.72)] transition-opacity duration-150 group-hover:opacity-100">
+                        {buildTopicExplanation(topic.title, course?.name)}
+                      </div>
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-2 pl-7 text-xs">
                       {topic.isEditing ? (
                         <>

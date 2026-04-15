@@ -43,6 +43,12 @@ export const agentCatalog: AgentCatalogItem[] = [
   },
 ];
 
+export function createDisabledAgentsConfig(): Record<string, boolean> {
+  return Object.fromEntries(
+    agentCatalog.map((agent) => [agent.key, false]),
+  );
+}
+
 type EnabledAgentsByCourse = Record<string, Record<string, boolean>>;
 type EnabledAgentsSetByCourse = Record<string, boolean>;
 
@@ -84,10 +90,7 @@ export function createCourse(input: {
   courses.unshift(course);
   writeJson(COURSES_KEY, courses);
 
-  const disabledByDefault = Object.fromEntries(
-    agentCatalog.map((agent) => [agent.key, false]),
-  );
-  setEnabledAgents(course.id, disabledByDefault);
+  setEnabledAgents(course.id, createDisabledAgentsConfig());
 
   return course;
 }

@@ -4,8 +4,14 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..db import courses_collection, course_members_collection
-from ..schemas import CourseCreate
+from ..db import (
+    course_agents_collection,
+    course_members_collection,
+    courses_collection,
+    session_runs_collection,
+    sessions_collection,
+)
+from ..schemas import CourseCreate, CourseUpdate
 from ..serializers import parse_user_id, parse_course_id, serialize_course
 
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -51,3 +57,46 @@ def get_course(course_id: str) -> dict:
     if not course:
         raise HTTPException(status_code=404, detail="Course not found.")
     return {"course": serialize_course(course)}
+
+
+@router.patch("/{course_id}")
+def update_course(course_id: str, payload: CourseUpdate) -> dict:
+    object_id = parse_course_id(course_id)
+    result = courses_collection.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "name": payload.name.strip(),
+                "code": payload.code.strip() if payload.code else None,
+                "term": payload.term.strip() if payload.term else None,
+            }
+        },
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    course = courses_collection.find_one({"_id": object_id})
+    return {"course": serialize_course(course)}
+
+
+@router.delete("/{course_id}")
+def delete_course(course_id: str) -> dict:
+    object_id = parse_course_id(course_id)
+    course = courses_collection.find_one({"_id": object_id})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    session_public_ids = [
+        session.get("public_id")
+        for session in sessions_collection.find({"course_id": course_id}, {"public_id": 1})
+        if session.get("public_id")
+    ]
+
+    courses_collection.delete_one({"_id": object_id})
+    course_members_collection.delete_many({"course_id": object_id})
+    course_agents_collection.delete_many({"course_id": object_id})
+    sessions_collection.delete_many({"course_id": course_id})
+    if session_public_ids:
+        session_runs_collection.delete_many({"session_id": {"$in": session_public_ids}})
+
+    return {"deleted": True}

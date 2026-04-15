@@ -824,7 +824,7 @@ export default function HomeworkAgentView({
 
             <div className="rounded-xl border border-slate-800/60 bg-slate-950/25 p-3.5">
               <label className="block text-sm font-semibold text-slate-100">
-                Open-ended questions
+                Open questions
               </label>
               <p className="mt-1 text-[11px] text-slate-500">Choose between 0 and 20</p>
               <input
