@@ -14,7 +14,7 @@ export const agentCatalog: AgentCatalogItem[] = [
   {
     key: "topic",
     name: "Topic Extraction Agent",
-    description: "Extracts key topics from academic content.",
+    description: "Extracts key topics from academic content",
   },
   {
     key: "syllabus",
@@ -29,17 +29,17 @@ export const agentCatalog: AgentCatalogItem[] = [
   {
     key: "homework",
     name: "Homework Generator",
-    description: "Generates personalized homework assignments.",
+    description: "Generates personalized homework assignments",
   },
   {
     key: "evaluation",
     name: "Homework Checking Agent",
-    description: "Checks homework against your rubric and suggests a grade.",
+    description: "Checks homework against your rubric and suggests a grade",
   },
   {
     key: "code_review",
     name: "Pedagogical Code Review Agent",
-    description: "Creates a sample solution and reviews it.",
+    description: "Creates a sample solution and reviews it",
   },
 ];
 

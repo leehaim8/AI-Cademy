@@ -13,7 +13,7 @@ const agents = [
   {
     id: "topic",
     title: "Topic Extraction Agent",
-    description: "Extracts key topics from academic content.",
+    description: "Extracts key topics from academic content",
     emoji: "🧠",
   },
   {
@@ -31,20 +31,20 @@ const agents = [
   {
     id: "homework",
     title: "Homework Generator",
-    description: "Generates personalized homework assignments.",
+    description: "Generates personalized homework assignments",
     emoji: "📝",
   },
   {
     id: "evaluation",
     title: "Homework Checking Agent",
     description:
-      "Checks homework against your rubric and suggests a grade.",
+      "Checks homework against your rubric and suggests a grade",
     emoji: "✅",
   },
   {
     id: "code-review",
     title: "Pedagogical Code Review Agent",
-    description: "Creates a sample solution and reviews it.",
+    description: "Creates a sample solution and reviews it",
     emoji: "💻",
   },
 ] as const;
