@@ -195,3 +195,40 @@ class HomeworkQuestionOut(BaseModel):
 class HomeworkGenerationResponse(BaseModel):
     chapter_title: Optional[str] = None
     questions: list[HomeworkQuestionOut]
+
+
+class HomeworkCheckRequest(BaseModel):
+    assignment_id: str = Field(default="assignment-1", min_length=1, max_length=200)
+    title: str = Field(default="Homework check", min_length=1, max_length=200)
+    assignment_text: str = Field(min_length=3, max_length=200_000)
+    questions_text: str = Field(min_length=3, max_length=200_000)
+    rubric_text: str = Field(min_length=3, max_length=200_000)
+    submission_id: str = Field(default="submission-1", min_length=1, max_length=200)
+    student_id: str = Field(default="student-1", min_length=1, max_length=200)
+    student_answer_text: str = Field(min_length=3, max_length=200_000)
+
+
+class HomeworkCheckEvidenceOut(BaseModel):
+    answer_snippet: Optional[str] = None
+    concept_score: Optional[float] = None
+    matched_concepts: list[str] = Field(default_factory=list)
+    missing_concepts: list[str] = Field(default_factory=list)
+    semantic_score: Optional[float] = None
+    semantic_explanation: Optional[str] = None
+
+
+class HomeworkCheckRequirementResultOut(BaseModel):
+    rubric_item_id: str
+    question_id: str
+    status: str
+    score: float
+    feedback: str = ""
+    evidence: HomeworkCheckEvidenceOut = Field(default_factory=HomeworkCheckEvidenceOut)
+
+
+class HomeworkCheckResponse(BaseModel):
+    submission_id: str
+    total_score: float
+    per_question_scores: dict[str, float] = Field(default_factory=dict)
+    per_requirement_results: list[HomeworkCheckRequirementResultOut] = Field(default_factory=list)
+    overall_feedback: str

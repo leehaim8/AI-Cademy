@@ -144,6 +144,10 @@ export default function HomeworkAgentView({
       })
       .join("\n\n");
 
+    const questionsText = questions
+      .map((question, index) => `Question ${index + 1}: ${question.prompt}`)
+      .join("\n");
+
     const criteria = questions
       .map((question, index) => {
         const items = question.grading_criteria
@@ -153,7 +157,7 @@ export default function HomeworkAgentView({
       })
       .join("\n\n");
 
-    return { assignment, criteria };
+    return { assignment, questionsText, criteria };
   }, [questions]);
 
   const handleDownloadPdf = () => {
@@ -579,6 +583,7 @@ export default function HomeworkAgentView({
         state: {
           fromHomeworkAgent: true,
           assignment: evaluationPayload.assignment,
+          questionsText: evaluationPayload.questionsText,
           criteria: evaluationPayload.criteria,
         },
       },
@@ -1004,7 +1009,7 @@ export default function HomeworkAgentView({
                         {question.options.map((option) => (
                           <li
                             key={option.label}
-                            className={`flex min-h-[6.75rem] items-start gap-2 rounded-lg border px-3 py-2 ${
+                            className={`flex min-h-[8.75rem] items-start gap-3 rounded-xl border px-4 py-3 ${
                               option.is_correct
                                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
                                 : "border-slate-800 bg-slate-950/50"

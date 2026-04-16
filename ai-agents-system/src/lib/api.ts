@@ -145,6 +145,43 @@ export type HomeworkGenerationResponse = {
   questions: HomeworkQuestion[];
 };
 
+export type HomeworkCheckPayload = {
+  assignment_id?: string;
+  title?: string;
+  assignment_text: string;
+  questions_text: string;
+  rubric_text: string;
+  submission_id?: string;
+  student_id?: string;
+  student_answer_text: string;
+};
+
+export type HomeworkCheckEvidence = {
+  answer_snippet?: string | null;
+  concept_score?: number | null;
+  matched_concepts: string[];
+  missing_concepts: string[];
+  semantic_score?: number | null;
+  semantic_explanation?: string | null;
+};
+
+export type HomeworkCheckRequirementResult = {
+  rubric_item_id: string;
+  question_id: string;
+  status: string;
+  score: number;
+  feedback: string;
+  evidence: HomeworkCheckEvidence;
+};
+
+export type HomeworkCheckResponse = {
+  submission_id: string;
+  total_score: number;
+  per_question_scores: Record<string, number>;
+  per_requirement_results: HomeworkCheckRequirementResult[];
+  overall_feedback: string;
+};
+
 export type TopicExtractionUploadPayload = {
   seminar_topic: string;
   files: File[];
@@ -371,6 +408,21 @@ export async function createBackendRun(
 
   const data = (await res.json()) as { run: SessionRun };
   return data.run;
+}
+
+export async function checkHomework(
+  payload: HomeworkCheckPayload,
+): Promise<HomeworkCheckResponse> {
+  const res = await fetch(`${API_BASE_URL}/homework/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as HomeworkCheckResponse;
 }
 
 export async function updateUser(

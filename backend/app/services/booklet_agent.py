@@ -163,6 +163,8 @@ def parse_weekly_structure(syllabus_text: str) -> dict[str, Any]:
                 central_inline = central_re.match(trailing)
                 if central_inline:
                     current["central_topic"] = central_inline.group(2).strip()
+                else:
+                    current["central_topic"] = trailing
             continue
 
         if table_mode:

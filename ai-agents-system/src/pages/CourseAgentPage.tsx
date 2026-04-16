@@ -54,7 +54,7 @@ export default function CourseAgentPage() {
     topic: "Temporary topic list",
     syllabus: "Temporary syllabus flow",
     homework: "Temporary homework set",
-    evaluation: "temorary grading",
+    evaluation: "Temporary grading",
     booklet: "Temporary course booklet",
     "code-review": "Temporary code review",
   };
