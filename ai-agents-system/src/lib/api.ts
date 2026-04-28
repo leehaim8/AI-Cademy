@@ -140,6 +140,14 @@ export type HomeworkQuestion = {
   correct_answers_count?: number | null;
 };
 
+export type HomeworkStructuredQuestion = {
+  prompt: string;
+  points: number;
+  type: "mcq" | "open";
+  grading_criteria: string[];
+  options?: HomeworkOption[];
+};
+
 export type HomeworkGenerationResponse = {
   chapter_title?: string | null;
   questions: HomeworkQuestion[];
@@ -154,6 +162,7 @@ export type HomeworkCheckPayload = {
   submission_id?: string;
   student_id?: string;
   student_answer_text: string;
+  structured_questions?: HomeworkStructuredQuestion[];
 };
 
 export type HomeworkCheckEvidence = {
