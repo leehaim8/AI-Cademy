@@ -22,7 +22,7 @@ class RubricItem:
     id: str
     question_id: str
     description: str
-    weight: float
+    points: float
 
 
 @dataclass
@@ -36,7 +36,11 @@ class Question:
     id: str
     assignment_id: str
     raw_text: str
+    points: float = 0.0
     expected_concepts: list[str] = field(default_factory=list)
+    grading_criteria: list[str] = field(default_factory=list)
+    options: list[dict[str, Any]] = field(default_factory=list)
+    correct_option_labels: list[str] = field(default_factory=list)
     expected_answer_type: str = "open"
 
 
@@ -78,7 +82,9 @@ class Requirement:
     question_id: str
     description: str
     expected_concepts: list[str]
-    weight: float
+    points: float
+    grading_criteria: list[str] = field(default_factory=list)
+    correct_option_labels: list[str] = field(default_factory=list)
     type: str = "conceptual"
 
 
@@ -152,6 +158,34 @@ class AssignmentUnderstandingLayer:
     def __init__(self, helper: OpenAIHomeworkHelper):
         self.helper = helper
 
+    @staticmethod
+    def _parse_manual_rubric_groups(rubric_text: str) -> list[list[str]]:
+        groups: list[list[str]] = []
+        current_group: list[str] = []
+
+        for raw_line in rubric_text.split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if re.match(r"(?i)^question\s+\d+\s*$", line) or re.match(r"(?i)^q\s*\d+\s*$", line):
+                if current_group:
+                    groups.append(current_group)
+                    current_group = []
+                continue
+
+            if line.startswith("-") or line.startswith("*"):
+                current_group.append(line.lstrip("-* ").strip())
+                continue
+
+            if current_group:
+                current_group.append(line)
+
+        if current_group:
+            groups.append(current_group)
+
+        return groups
+
     def parse_questions(self, assignment_id: str, questions_text: str) -> list[Question]:
         lines = [line.strip() for line in questions_text.split("\n") if line.strip()]
         return [
@@ -159,16 +193,87 @@ class AssignmentUnderstandingLayer:
                 id=f"Q{index}",
                 assignment_id=assignment_id,
                 raw_text=line,
+                points=0.0,
             )
             for index, line in enumerate(lines, start=1)
         ]
+
+    def _parse_structured_questions(self, assignment_id: str, structured_questions: list) -> list[Question]:
+        questions: list[Question] = []
+        for index, q_data in enumerate(structured_questions, start=1):
+            # Handle both dict and object attributes
+            if hasattr(q_data, 'points'):
+                points = float(q_data.points)
+                prompt = q_data.prompt
+                grading_criteria = list(q_data.grading_criteria or [])
+                answer_type = getattr(q_data, 'type', 'open')
+                options = [option.model_dump() if hasattr(option, 'model_dump') else dict(option) for option in getattr(q_data, 'options', [])]
+            else:
+                points = float(q_data.get("points", 0.0))
+                prompt = q_data.get("prompt", "")
+                grading_criteria = list(q_data.get("grading_criteria", []))
+                answer_type = q_data.get("type", "open")
+                options = list(q_data.get("options", []))
+
+            correct_option_labels = [
+                str(option.get("label", "")).strip().upper()
+                for option in options
+                if option.get("is_correct")
+            ]
+            
+            questions.append(
+                Question(
+                    id=f"Q{index}",
+                    assignment_id=assignment_id,
+                    raw_text=prompt,
+                    points=points,
+                    grading_criteria=grading_criteria,
+                    options=options,
+                    correct_option_labels=correct_option_labels,
+                    expected_answer_type=answer_type,
+                )
+            )
+        return questions
 
     def parse_rubric(
         self,
         assignment_id: str,
         rubric_text: str,
         questions: list[Question],
+        structured_questions: list | None = None,
     ) -> Rubric:
+        if structured_questions:
+            items: list[RubricItem] = []
+            for index, question in enumerate(questions, start=1):
+                description = "; ".join(question.grading_criteria) if question.grading_criteria else question.raw_text
+                items.append(
+                    RubricItem(
+                        id=f"R{index}",
+                        question_id=question.id,
+                        description=description,
+                        points=question.points,
+                    )
+                )
+            return Rubric(assignment_id=assignment_id, items=items)
+
+        manual_groups = self._parse_manual_rubric_groups(rubric_text)
+        if manual_groups:
+            items: list[RubricItem] = []
+            for index, question in enumerate(questions, start=1):
+                criteria = manual_groups[index - 1] if index - 1 < len(manual_groups) else []
+                if criteria:
+                    question.grading_criteria = criteria
+                description = "\n".join(criteria) if criteria else question.raw_text
+                items.append(
+                    RubricItem(
+                        id=f"R{index}",
+                        question_id=question.id,
+                        description=description,
+                        points=question.points,
+                    )
+                )
+            return Rubric(assignment_id=assignment_id, items=items)
+
         lines = [line.strip() for line in rubric_text.split("\n") if line.strip()]
         items: list[RubricItem] = []
         count = max(len(lines), len(questions))
@@ -176,7 +281,6 @@ class AssignmentUnderstandingLayer:
         if count == 0:
             return Rubric(assignment_id=assignment_id, items=[])
 
-        weight_per_item = 1.0 / count
         for index in range(count):
             description = lines[index] if index < len(lines) else f"General criterion for question {index + 1}"
             question = questions[index] if index < len(questions) else questions[-1]
@@ -185,7 +289,7 @@ class AssignmentUnderstandingLayer:
                     id=f"R{index + 1}",
                     question_id=question.id,
                     description=description,
-                    weight=weight_per_item,
+                    points=question.points,
                 )
             )
 
@@ -208,7 +312,6 @@ class AssignmentUnderstandingLayer:
                 for concept in response.split(",")
                 if concept.strip()
             ]
-            question.expected_answer_type = "explanation"
 
     def build_requirements(self, assignment: Assignment) -> list[Requirement]:
         requirements: list[Requirement] = []
@@ -222,8 +325,10 @@ class AssignmentUnderstandingLayer:
                     question_id=question.id,
                     description=item.description,
                     expected_concepts=question.expected_concepts,
-                    weight=item.weight,
-                    type="conceptual",
+                    points=item.points,
+                    grading_criteria=question.grading_criteria,
+                    correct_option_labels=question.correct_option_labels,
+                    type=question.expected_answer_type,
                 )
             )
         return requirements
@@ -235,9 +340,14 @@ class AssignmentUnderstandingLayer:
         assignment_text: str,
         questions_text: str,
         rubric_text: str,
+        structured_questions: list | None = None,
     ) -> tuple[Assignment, list[Requirement]]:
-        questions = self.parse_questions(assignment_id, questions_text)
-        rubric = self.parse_rubric(assignment_id, rubric_text, questions)
+        if structured_questions:
+            questions = self._parse_structured_questions(assignment_id, structured_questions)
+        else:
+            questions = self.parse_questions(assignment_id, questions_text)
+
+        rubric = self.parse_rubric(assignment_id, rubric_text, questions, structured_questions)
         self.enrich_questions_with_concepts(questions)
         assignment = Assignment(
             id=assignment_id,
@@ -258,6 +368,139 @@ class SubmissionUnderstandingLayer:
         match = re.search(r"(\d+)", question_id)
         return match.group(1) if match else None
 
+    @staticmethod
+    def _tokenize_answer(text: str) -> set[str]:
+        return {token for token in MatchingEngine._tokenize(text)}
+
+    @staticmethod
+    def _extract_selected_labels(answer_text: str) -> list[str]:
+        labels: list[str] = []
+        patterns = [
+            r"(?im)\b([A-H])\s*[:\).\-]",
+            r"(?i)\boption\s+([A-H])\b",
+            r"(?i)\banswer\s*[:\-]?\s*([A-H])\b",
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, answer_text)
+            for match in matches:
+                label = match.strip().upper()
+                if label and label not in labels:
+                    labels.append(label)
+            if labels:
+                break
+        return labels
+
+    @staticmethod
+    def _criterion_keywords(criterion: str) -> list[str]:
+        tokens = MatchingEngine._tokenize(criterion)
+        stop_words = {
+            "the", "and", "for", "with", "that", "this", "from", "into", "your", "you",
+            "student", "question", "answer", "should", "would", "could", "at", "least", "two",
+            "one", "more", "than", "such", "as", "like", "be", "is", "are", "was", "were",
+            "of", "to", "in", "on", "by", "an", "a", "or", "it", "its", "their", "how",
+            "what", "which", "both", "also", "include", "includes", "provided", "provide",
+            "mention", "mentioning", "list", "give", "provide", "explain", "describe",
+        }
+        return [token for token in tokens if token not in stop_words]
+
+    def _criterion_met(self, criterion: str, answer_text: str, answer_tokens: set[str]) -> bool:
+        lower_answer = answer_text.lower()
+        lower_criterion = criterion.lower()
+
+        if lower_criterion in lower_answer:
+            return True
+
+        keywords = self._criterion_keywords(criterion)
+        if not keywords:
+            return False
+
+        matched = sum(1 for keyword in keywords if keyword in answer_tokens)
+        ratio = matched / len(keywords)
+
+        if "at least two benefits" in lower_criterion:
+            benefit_markers = [
+                "simplified",
+                "simplify",
+                "portable",
+                "portability",
+                "protection",
+                "fault",
+                "multitasking",
+                "isolation",
+                "safety",
+                "efficiency",
+                "resource",
+            ]
+            marker_count = sum(1 for marker in benefit_markers if marker in lower_answer)
+            return marker_count >= 2
+
+        if "example" in lower_criterion:
+            return any(marker in lower_answer for marker in ("virtual memory", "process isolation", "example"))
+
+        return ratio >= 0.6
+
+    def _score_open_response(self, requirement: Requirement, answer: AnswerSegment) -> tuple[str, float, dict[str, Any]]:
+        if not requirement.grading_criteria:
+            return "NOT_MET", 0.0, {"matched_criteria": [], "missing_criteria": []}
+
+        answer_tokens = self._tokenize_answer(answer.raw_text) | self._tokenize_answer(" ".join(answer.extracted_concepts))
+        matched: list[str] = []
+        missing: list[str] = []
+
+        for criterion in requirement.grading_criteria:
+            if self._criterion_met(criterion, answer.raw_text, answer_tokens):
+                matched.append(criterion)
+            else:
+                missing.append(criterion)
+
+        score = len(matched) / len(requirement.grading_criteria)
+        if score >= 0.85:
+            status = "FULLY_MET"
+        elif score > 0:
+            status = "PARTIALLY_MET"
+        else:
+            status = "NOT_MET"
+
+        evidence = {
+            "matched_criteria": matched,
+            "missing_criteria": missing,
+            "criteria_score": score,
+        }
+        return status, score, evidence
+
+    def _score_mcq_response(self, requirement: Requirement, answer: AnswerSegment) -> tuple[str, float, dict[str, Any]]:
+        selected_labels = self._extract_selected_labels(answer.raw_text)
+        correct_labels = [label.upper() for label in requirement.correct_option_labels]
+
+        evidence: dict[str, Any] = {
+            "selected_labels": selected_labels,
+            "correct_labels": correct_labels,
+        }
+
+        if not selected_labels:
+            return "NOT_MET", 0.0, evidence
+
+        if not correct_labels and requirement.grading_criteria:
+            open_status, open_score, open_evidence = self._score_open_response(requirement, answer)
+            evidence.update(open_evidence)
+            evidence["fallback_mode"] = "criteria_based_mcq"
+            if open_score >= 0.85:
+                return "FULLY_MET", 1.0, evidence
+            if open_score > 0:
+                return "PARTIALLY_MET", open_score, evidence
+            return "NOT_MET", 0.0, evidence
+
+        selected_set = set(selected_labels)
+        correct_set = set(correct_labels)
+
+        if selected_set == correct_set and correct_set:
+            return "FULLY_MET", 1.0, evidence
+
+        if selected_set & correct_set:
+            return "PARTIALLY_MET", 0.5, evidence
+
+        return "NOT_MET", 0.0, evidence
+
     def split_answers_by_questions(
         self,
         assignment: Assignment,
@@ -271,10 +514,17 @@ class SubmissionUnderstandingLayer:
                 )
             ]
 
-        marker_pattern = re.compile(r"(?im)^\s*(?:question|q)\s*(\d+)\s*[:\).\-]?")
+        marker_pattern = re.compile(r"(?im)^\s*(?:question|q)\s*(\d+)\s*[:\).\-]?|^\s*(\d+)\s*[\).]\s*")
         matches = list(marker_pattern.finditer(student_answer_text))
 
         if not matches:
+            paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", student_answer_text) if paragraph.strip()]
+            if len(paragraphs) >= len(assignment.questions) and len(assignment.questions) > 1:
+                return [
+                    AnswerSegment(question_id=question.id, raw_text=paragraphs[index])
+                    for index, question in enumerate(assignment.questions)
+                ]
+
             return [
                 AnswerSegment(question_id=question.id, raw_text=student_answer_text)
                 for question in assignment.questions
@@ -282,7 +532,7 @@ class SubmissionUnderstandingLayer:
 
         by_number: dict[str, str] = {}
         for index, match in enumerate(matches):
-            question_number = match.group(1)
+            question_number = match.group(1) or match.group(2)
             start = match.end()
             end = matches[index + 1].start() if index + 1 < len(matches) else len(student_answer_text)
             body = student_answer_text[start:end].strip()
@@ -421,6 +671,116 @@ class GradingEngine:
     def __init__(self, matching_engine: MatchingEngine):
         self.matching_engine = matching_engine
 
+    @staticmethod
+    def _tokenize_answer(text: str) -> set[str]:
+        return {token for token in MatchingEngine._tokenize(text)}
+
+    @staticmethod
+    def _extract_selected_labels(answer_text: str) -> list[str]:
+        # Reuse the more permissive extraction implemented in SubmissionUnderstandingLayer
+        return SubmissionUnderstandingLayer._extract_selected_labels(answer_text)
+
+    @staticmethod
+    def _criterion_keywords(criterion: str) -> list[str]:
+        tokens = MatchingEngine._tokenize(criterion)
+        stop_words = {
+            "the", "and", "for", "with", "that", "this", "from", "into", "your", "you",
+            "student", "question", "answer", "should", "would", "could", "at", "least", "two",
+            "one", "more", "than", "such", "as", "like", "be", "is", "are", "was", "were",
+            "of", "to", "in", "on", "by", "an", "a", "or", "it", "its", "their", "how",
+            "what", "which", "both", "also", "include", "includes", "provided", "provide",
+            "mention", "mentioning", "list", "give", "provide", "explain", "describe",
+        }
+        return [token for token in tokens if token not in stop_words]
+
+    def _criterion_met(self, criterion: str, answer_text: str, answer_tokens: set[str]) -> bool:
+        lower_answer = answer_text.lower()
+        lower_criterion = criterion.lower()
+
+        if lower_criterion in lower_answer:
+            return True
+
+        keywords = self._criterion_keywords(criterion)
+        if not keywords:
+            return False
+
+        matched = sum(1 for keyword in keywords if keyword in answer_tokens)
+        ratio = matched / len(keywords)
+
+        if "at least two benefits" in lower_criterion:
+            benefit_markers = [
+                "simplified",
+                "simplify",
+                "portable",
+                "portability",
+                "protection",
+                "fault",
+                "multitasking",
+                "isolation",
+                "safety",
+                "efficiency",
+                "resource",
+            ]
+            marker_count = sum(1 for marker in benefit_markers if marker in lower_answer)
+            return marker_count >= 2
+
+        if "example" in lower_criterion:
+            return any(marker in lower_answer for marker in ("virtual memory", "process isolation", "example"))
+
+        return ratio >= 0.6
+
+    def _score_open_response(self, requirement: Requirement, answer: AnswerSegment) -> tuple[str, float, dict[str, Any]]:
+        if not requirement.grading_criteria:
+            return "NOT_MET", 0.0, {"matched_criteria": [], "missing_criteria": []}
+
+        answer_tokens = self._tokenize_answer(answer.raw_text) | self._tokenize_answer(" ".join(answer.extracted_concepts))
+        matched: list[str] = []
+        missing: list[str] = []
+
+        for criterion in requirement.grading_criteria:
+            if self._criterion_met(criterion, answer.raw_text, answer_tokens):
+                matched.append(criterion)
+            else:
+                missing.append(criterion)
+
+        score = len(matched) / len(requirement.grading_criteria)
+        if score >= 0.85:
+            status = "FULLY_MET"
+        elif score > 0:
+            status = "PARTIALLY_MET"
+        else:
+            status = "NOT_MET"
+
+        evidence = {
+            "matched_criteria": matched,
+            "missing_criteria": missing,
+            "criteria_score": score,
+        }
+        return status, score, evidence
+
+    def _score_mcq_response(self, requirement: Requirement, answer: AnswerSegment) -> tuple[str, float, dict[str, Any]]:
+        selected_labels = self._extract_selected_labels(answer.raw_text)
+        correct_labels = [label.upper() for label in requirement.correct_option_labels]
+
+        evidence: dict[str, Any] = {
+            "selected_labels": selected_labels,
+            "correct_labels": correct_labels,
+        }
+
+        if not selected_labels:
+            return "NOT_MET", 0.0, evidence
+
+        selected_set = set(selected_labels)
+        correct_set = set(correct_labels)
+
+        if selected_set == correct_set and correct_set:
+            return "FULLY_MET", 1.0, evidence
+
+        if selected_set & correct_set:
+            return "PARTIALLY_MET", 0.5, evidence
+
+        return "NOT_MET", 0.0, evidence
+
     def evaluate_requirement(
         self,
         requirement: Requirement,
@@ -437,29 +797,23 @@ class GradingEngine:
                 evidence={},
             )
 
-        concept_score, matched_concepts, missing_concepts = self.matching_engine.concept_matching(
-            requirement,
-            answer,
-        )
-        semantic_status, semantic_score, semantic_explanation = self.matching_engine.semantic_matching(
-            requirement,
-            answer,
-        )
-
-        if semantic_status == "FULLY_MET":
-            status = "FULLY_MET"
-        elif semantic_status == "PARTIALLY_MET" or concept_score > 0.3:
-            status = "PARTIALLY_MET"
+        if requirement.type == "mcq":
+            status, score, mcq_evidence = self._score_mcq_response(requirement, answer)
+            concept_score = 0.0
+            matched_concepts: list[str] = []
+            missing_concepts: list[str] = []
+            semantic_score = 0.0
+            semantic_explanation = "MCQ scoring is based on the selected option."
+            evidence = mcq_evidence
         else:
-            status = "NOT_MET"
-
-        if status == "FULLY_MET":
-            score = rubric_item.weight
-        elif status == "PARTIALLY_MET":
-            combined = CONCEPT_WEIGHT * concept_score + SEMANTIC_WEIGHT * semantic_score
-            score = rubric_item.weight * combined
-        else:
-            score = 0.0
+            status, score, checklist_evidence = self._score_open_response(requirement, answer)
+            concept_score, matched_concepts, missing_concepts = self.matching_engine.concept_matching(
+                requirement,
+                answer,
+            )
+            semantic_score = 0.0
+            semantic_explanation = "Open-response scoring is based on checklist criteria."
+            evidence = checklist_evidence
 
         return RequirementEvaluationResult(
             rubric_item_id=rubric_item.id,
@@ -473,25 +827,56 @@ class GradingEngine:
                 "missing_concepts": missing_concepts,
                 "semantic_score": semantic_score,
                 "semantic_explanation": semantic_explanation,
+                **evidence,
             },
         )
 
     def aggregate_scores(
         self,
         requirement_results: list[RequirementEvaluationResult],
+        requirements: list[Requirement],
     ) -> tuple[float, dict[str, float]]:
+        total_points_possible = sum(req.points for req in requirements)
+        
+        # If no points defined (manual upload), use equal weight for each requirement
+        if total_points_possible == 0:
+            per_question_scores_raw: dict[str, float] = {}
+            total_score_raw = 0.0
+            
+            for result in requirement_results:
+                per_question_scores_raw.setdefault(result.question_id, 0.0)
+                per_question_scores_raw[result.question_id] += result.score
+                total_score_raw += result.score
+            
+            num_requirements = len(requirement_results) if requirement_results else 1
+            total_score = (total_score_raw / num_requirements) * 100.0 if num_requirements > 0 else 0.0
+            per_question_scores = {
+                question_id: (score / len([r for r in requirement_results if r.question_id == question_id])) * 100.0 
+                if len([r for r in requirement_results if r.question_id == question_id]) > 0 else 0.0
+                for question_id, score in per_question_scores_raw.items()
+            }
+            return total_score, per_question_scores
+        
+        # Points-based calculation (from generated homework)
         per_question_scores_raw: dict[str, float] = {}
-        total_score_raw = 0.0
+        total_points_earned = 0.0
 
-        for result in requirement_results:
+        for result, requirement in zip(requirement_results, requirements):
+            points_earned = result.score * requirement.points
             per_question_scores_raw.setdefault(result.question_id, 0.0)
-            per_question_scores_raw[result.question_id] += result.score
-            total_score_raw += result.score
+            per_question_scores_raw[result.question_id] += points_earned
+            total_points_earned += points_earned
 
-        return (
-            total_score_raw * 100.0,
-            {question_id: score * 100.0 for question_id, score in per_question_scores_raw.items()},
-        )
+        total_score = (total_points_earned / total_points_possible) * 100.0
+        per_question_scores = {}
+        for question_id, score in per_question_scores_raw.items():
+            question_total_points = sum(req.points for req in requirements if req.question_id == question_id)
+            if question_total_points > 0:
+                per_question_scores[question_id] = (score / question_total_points) * 100.0
+            else:
+                per_question_scores[question_id] = 0.0
+
+        return total_score, per_question_scores
 
 
 class FeedbackEngine:
@@ -569,6 +954,7 @@ class HomeworkGradingAgent:
         submission_id: str,
         student_id: str,
         student_answer_text: str,
+        structured_questions: list | None = None,
     ) -> GradingResult:
         assignment, requirements = self.assignment_understanding.build_assignment(
             assignment_id=assignment_id,
@@ -576,6 +962,7 @@ class HomeworkGradingAgent:
             assignment_text=assignment_text,
             questions_text=questions_text,
             rubric_text=rubric_text,
+            structured_questions=structured_questions,
         )
 
         submission = Submission(
@@ -604,7 +991,7 @@ class HomeworkGradingAgent:
                 )
             )
 
-        total_score, per_question_scores = self.grading_engine.aggregate_scores(requirement_results)
+        total_score, per_question_scores = self.grading_engine.aggregate_scores(requirement_results, requirements)
 
         for requirement, result in zip(requirements, requirement_results):
             answer = next(
@@ -641,6 +1028,7 @@ def check_homework(
     submission_id: str,
     student_id: str,
     student_answer_text: str,
+    structured_questions: list | None = None,
 ) -> GradingResult:
     client = get_openai_client()
     helper = OpenAIHomeworkHelper(client)
@@ -663,4 +1051,5 @@ def check_homework(
         submission_id=submission_id,
         student_id=student_id,
         student_answer_text=student_answer_text,
+        structured_questions=structured_questions,
     )

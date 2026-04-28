@@ -197,6 +197,14 @@ class HomeworkGenerationResponse(BaseModel):
     questions: list[HomeworkQuestionOut]
 
 
+class StructuredQuestion(BaseModel):
+    prompt: str = Field(min_length=1, max_length=5000)
+    points: float = Field(gt=0)
+    grading_criteria: list[str] = Field(default_factory=list)
+    type: Literal["mcq", "open"] = "open"
+    options: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class HomeworkCheckRequest(BaseModel):
     assignment_id: str = Field(default="assignment-1", min_length=1, max_length=200)
     title: str = Field(default="Homework check", min_length=1, max_length=200)
@@ -206,6 +214,7 @@ class HomeworkCheckRequest(BaseModel):
     submission_id: str = Field(default="submission-1", min_length=1, max_length=200)
     student_id: str = Field(default="student-1", min_length=1, max_length=200)
     student_answer_text: str = Field(min_length=3, max_length=200_000)
+    structured_questions: Optional[list[StructuredQuestion]] = None
 
 
 class HomeworkCheckEvidenceOut(BaseModel):

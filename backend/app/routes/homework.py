@@ -127,6 +127,7 @@ def check_homework_submission(
             submission_id=payload.submission_id,
             student_id=payload.student_id,
             student_answer_text=payload.student_answer_text,
+            structured_questions=payload.structured_questions,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
