@@ -20,6 +20,7 @@ import {
 } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
+import AgentActionButton from "../../components/AgentActionButton";
 
 type BookletConfig = {
   courseName: string;
@@ -76,7 +77,6 @@ function outlineFromSyllabus(weeks: SyllabusWeek[]): BookletOutlineUnit[] {
 
 export default function BookletAgentView({
   selectedRun = null,
-  onClearSelectedRun: _onClearSelectedRun,
   clearSelectionVersion = 0,
 }: BookletAgentViewProps) {
   const { courseId = "", agentKey = "", id = "" } = useParams();
@@ -1019,18 +1019,12 @@ export default function BookletAgentView({
                 <div className="flex flex-col gap-3 text-xs text-slate-300">
                   {activeChapter ? (
                     <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => handleDownloadPdf(activeChapter)}
-                        className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 hover:border-slate-500"
-                      >
+                      <AgentActionButton onClick={() => handleDownloadPdf(activeChapter)} variant="violet">
                         Download PDF
-                      </button>
-                      <button
-                        onClick={() => handleSendToHomework(activeChapter)}
-                        className="rounded-xl border border-emerald-500/60 px-4 py-2 text-sm text-emerald-200 hover:border-emerald-400"
-                      >
+                      </AgentActionButton>
+                      <AgentActionButton onClick={() => handleSendToHomework(activeChapter)} variant="emerald">
                         Send to Homework Generator
-                      </button>
+                      </AgentActionButton>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">

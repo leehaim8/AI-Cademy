@@ -9,6 +9,7 @@ import {
 import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
+import AgentActionButton from "../../components/AgentActionButton";
 
 type UploadedFile = {
   id: string;
@@ -921,20 +922,12 @@ export default function TopicAgentView({
         {view === "suggested" && hasSubmitted && topics.length > 0 && (
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              <button
-                type="button"
-                onClick={handleSaveOutput}
-                className="inline-flex w-full items-center justify-center rounded-md border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:border-sky-400 hover:bg-sky-500/15 hover:text-sky-100 sm:w-auto"
-              >
-                <span>Save output</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleNavigateToSyllabus}
-                className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto"
-              >
-                <span>Use topics in Syllabus Flow Agent</span>
-              </button>
+              <AgentActionButton onClick={handleSaveOutput} variant="sky" fullWidth>
+                Save output
+              </AgentActionButton>
+              <AgentActionButton onClick={handleNavigateToSyllabus} variant="emerald" fullWidth>
+                Use topics in Syllabus Flow Agent
+              </AgentActionButton>
             </div>
             {saveMessage ? (
               <p className={`text-xs ${saveState === "error" ? "text-rose-300" : "text-emerald-300"}`}>

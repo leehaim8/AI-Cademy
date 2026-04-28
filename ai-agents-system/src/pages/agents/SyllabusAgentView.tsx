@@ -9,6 +9,7 @@ import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStor
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
 import aiCademyLogo from "../../assets/ai-cademy-logo.svg";
+import AgentActionButton from "../../components/AgentActionButton";
 
 type TopicSourceMode = "paste" | "manual";
 
@@ -810,30 +811,15 @@ export default function SyllabusAgentView({
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <button
-                  type="button"
-                  onClick={handleSaveOutput}
-                  disabled={weekPlan.length === 0}
-                  className="inline-flex w-full items-center justify-center rounded-md border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:border-sky-400 hover:bg-sky-500/15 hover:text-sky-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
-                >
-                  <span>Save output</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadPdf}
-                  disabled={weekPlan.length === 0}
-                  className="inline-flex w-full items-center justify-center rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
-                >
-                  <span>Download PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNavigateToBooklet}
-                  disabled={weekPlan.length === 0}
-                  className="inline-flex w-full items-center justify-center rounded-md border border-violet-500/50 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-200 hover:border-violet-400 hover:bg-violet-500/15 hover:text-violet-100 sm:w-auto disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
-                >
-                  <span>Use in Course Booklet Generator</span>
-                </button>
+                <AgentActionButton onClick={handleSaveOutput} variant="sky" disabled={weekPlan.length === 0} fullWidth>
+                  Save output
+                </AgentActionButton>
+                <AgentActionButton onClick={handleDownloadPdf} variant="emerald" disabled={weekPlan.length === 0} fullWidth>
+                  Download PDF
+                </AgentActionButton>
+                <AgentActionButton onClick={handleNavigateToBooklet} variant="violet" disabled={weekPlan.length === 0} fullWidth>
+                  Use in Course Booklet Generator
+                </AgentActionButton>
               </div>
             </div>
             {saveMessage ? (

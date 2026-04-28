@@ -13,6 +13,7 @@ import {
 import { enableAgentForCourse, getAgentAvailability } from "../../lib/courseStore";
 import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
+import AgentActionButton from "../../components/AgentActionButton";
 
 type InputMode = "text" | "file";
 
@@ -564,6 +565,14 @@ export default function HomeworkAgentView({
       return;
     }
 
+    const structuredQuestions = questions.map((question) => ({
+      prompt: question.prompt,
+      points: question.points,
+      type: question.type,
+      grading_criteria: question.grading_criteria,
+      options: question.options,
+    }));
+
     if (courseId) {
       const availability = getAgentAvailability(courseId);
       if (!availability.evaluation) {
@@ -585,6 +594,7 @@ export default function HomeworkAgentView({
           assignment: evaluationPayload.assignment,
           questionsText: evaluationPayload.questionsText,
           criteria: evaluationPayload.criteria,
+          structuredQuestions,
         },
       },
     );
@@ -924,27 +934,15 @@ export default function HomeworkAgentView({
 
         {hasGenerated ? (
           <div className="flex flex-wrap justify-start gap-3">
-            <button
-              type="button"
-              onClick={handleSendToEvaluation}
-              className="inline-flex items-center justify-center rounded-lg border border-violet-500/60 bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-200 transition hover:bg-violet-500/20"
-            >
+            <AgentActionButton onClick={handleSendToEvaluation} variant="violet">
               Send to Homework Checking Agent
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveOutput}
-              className="inline-flex items-center justify-center rounded-lg border border-sky-500/60 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/20"
-            >
+            </AgentActionButton>
+            <AgentActionButton onClick={handleSaveOutput} variant="sky">
               Save output
-            </button>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              className="inline-flex items-center justify-center rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
-            >
+            </AgentActionButton>
+            <AgentActionButton onClick={handleDownloadPdf} variant="emerald">
               Download PDF
-            </button>
+            </AgentActionButton>
           </div>
         ) : null}
 

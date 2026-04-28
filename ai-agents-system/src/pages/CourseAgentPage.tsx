@@ -151,7 +151,11 @@ export default function CourseAgentPage() {
                 clearSelectionVersion={clearSelectionVersion}
               />
             ) : normalizedKey === "evaluation" ? (
-              <EvaluationAgentView />
+              <EvaluationAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
+              />
             ) : normalizedKey === "booklet" ? (
               <BookletAgentView
                 selectedRun={selectedRun}
