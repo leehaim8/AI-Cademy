@@ -237,16 +237,87 @@ export default function HomeworkAgentView({
       y += 14;
     };
 
-    const addBulletList = (items: string[]) => {
-      items.forEach((item) => {
-        ensureSpace(18);
-        doc.setFillColor(56, 189, 248);
-        doc.circle(marginX + 4, y - 3, 2, "F");
-        addWrappedText(item, marginX + 14, contentWidth - 14, {
-          fontSize: 11,
-          extraSpacing: 3,
-        });
+    const addAnswerChoice = (option: HomeworkQuestion["options"][number]) => {
+      const optionFontSize = 11;
+      const optionLineHeight = 14;
+      const labelColumnWidth = 34;
+      const correctLabelWidth = option.is_correct ? 58 : 0;
+      const textX = marginX + labelColumnWidth;
+      const textWidth = contentWidth - labelColumnWidth - correctLabelWidth - 18;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(optionFontSize);
+      const optionLines = doc.splitTextToSize(option.text, textWidth);
+      const optionHeight = Math.max(38, optionLines.length * optionLineHeight + 20);
+
+      ensureSpace(optionHeight + 8);
+      doc.setFillColor(
+        option.is_correct ? 236 : 248,
+        option.is_correct ? 253 : 250,
+        option.is_correct ? 245 : 252,
+      );
+      doc.setDrawColor(
+        option.is_correct ? 16 : 203,
+        option.is_correct ? 185 : 213,
+        option.is_correct ? 129 : 225,
+      );
+      doc.roundedRect(marginX, y - 2, contentWidth, optionHeight, 10, 10, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(optionFontSize);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${option.label}.`, marginX + 12, y + 17);
+      doc.setFont("helvetica", "normal");
+      doc.text(optionLines, textX, y + 17, {
+        lineHeightFactor: optionLineHeight / optionFontSize,
       });
+
+      if (option.is_correct) {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(5, 150, 105);
+        doc.text("Correct", marginX + contentWidth - 12, y + 17, {
+          align: "right",
+        });
+      }
+
+      y += optionHeight + 8;
+    };
+
+    const addGradingCriteriaCard = (items: string[]) => {
+      const criteriaFontSize = 11;
+      const criteriaLineHeight = 15;
+      const bulletGap = 8;
+      const textX = marginX + 28;
+      const textWidth = contentWidth - 42;
+      const wrappedItems = items.map((item) => doc.splitTextToSize(item, textWidth));
+      const bulletContentHeight = wrappedItems.reduce(
+        (total, lines) => total + Math.max(1, lines.length) * criteriaLineHeight + bulletGap,
+        0,
+      );
+      const criteriaHeight = Math.max(58, bulletContentHeight + 42);
+
+      ensureSpace(criteriaHeight + 18);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(marginX, y - 2, contentWidth, criteriaHeight, 12, 12, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text("GRADING CRITERIA", marginX + 14, y + 12);
+
+      let bulletY = y + 32;
+      wrappedItems.forEach((lines) => {
+        doc.setFillColor(56, 189, 248);
+        doc.circle(marginX + 14, bulletY - 4, 2, "F");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(criteriaFontSize);
+        doc.setTextColor(15, 23, 42);
+        doc.text(lines, textX, bulletY, {
+          lineHeightFactor: criteriaLineHeight / criteriaFontSize,
+        });
+        bulletY += Math.max(1, lines.length) * criteriaLineHeight + bulletGap;
+      });
+
+      y += criteriaHeight + 12;
     };
 
     drawPageFrame();
@@ -333,28 +404,7 @@ export default function HomeworkAgentView({
 
       if (question.options.length > 0) {
         addSectionLabel("Answer choices");
-        question.options.forEach((option) => {
-          const optionHeight = 34;
-          ensureSpace(optionHeight + 4);
-          doc.setFillColor(option.is_correct ? 236 : 248, option.is_correct ? 253 : 250, option.is_correct ? 245 : 252);
-          doc.setDrawColor(option.is_correct ? 16 : 203, option.is_correct ? 185 : 213, option.is_correct ? 129 : 225);
-          doc.roundedRect(marginX, y - 2, contentWidth, optionHeight, 10, 10, "FD");
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(15, 23, 42);
-          doc.text(`${option.label}.`, marginX + 12, y + 17);
-          doc.setFont("helvetica", "normal");
-          const optionLines = doc.splitTextToSize(option.text, contentWidth - 48);
-          doc.text(optionLines, marginX + 34, y + 17);
-          if (option.is_correct) {
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(5, 150, 105);
-            doc.text("Correct", marginX + contentWidth - 12, y + 17, {
-              align: "right",
-            });
-          }
-          y += optionHeight + 8;
-        });
+        question.options.forEach(addAnswerChoice);
         addWrappedText(
           `Correct answers required: ${question.correct_answers_count ?? 1}`,
           marginX,
@@ -379,18 +429,7 @@ export default function HomeworkAgentView({
       doc.text(answerLines, marginX + 14, y + 30);
       y += answerHeight + 12;
 
-      const criteriaHeight = Math.max(58, question.grading_criteria.length * 18 + 28);
-      ensureSpace(criteriaHeight + 18);
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(marginX, y - 2, contentWidth, criteriaHeight, 12, 12, "FD");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(71, 85, 105);
-      doc.text("GRADING CRITERIA", marginX + 14, y + 12);
-      y += 30;
-      addBulletList(question.grading_criteria);
-      y += 10;
+      addGradingCriteriaCard(question.grading_criteria);
 
       doc.setDrawColor(226, 232, 240);
       doc.line(marginX, y, marginX + contentWidth, y);
