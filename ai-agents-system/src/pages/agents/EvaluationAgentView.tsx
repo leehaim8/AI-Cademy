@@ -11,6 +11,8 @@ import { createRun, createSession } from "../../lib/sessionStore";
 import type { SessionRun } from "../../types/course";
 import AgentActionButton from "../../components/AgentActionButton";
 
+type InputMode = "text" | "file";
+
 type StructuredQuestionInput = {
   prompt: string;
   points: number;
@@ -151,6 +153,43 @@ export default function EvaluationAgentView({
   const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
   const [pdfState, setPdfState] = useState<"idle" | "success" | "error">("idle");
+  const [assignmentInputMode, setAssignmentInputMode] = useState<InputMode>("text");
+  const [criteriaInputMode, setCriteriaInputMode] = useState<InputMode>("text");
+  const [assignmentUploadError, setAssignmentUploadError] = useState<string | null>(null);
+  const [criteriaUploadError, setCriteriaUploadError] = useState<string | null>(null);
+  const [submissionInputMode, setSubmissionInputMode] = useState<InputMode>("text");
+  const [submissionUploadError, setSubmissionUploadError] = useState<string | null>(null);
+
+  const handleFileChange = async (
+    file: File | undefined,
+    setContent: (content: string) => void,
+    setError: (error: string | null) => void,
+  ) => {
+    if (!file) return;
+
+    const isSupported = /\.(pdf|docx|txt|md|csv|json|html|htm)$/i.test(file.name);
+    if (!isSupported) {
+      setError("Supported file types: PDF, DOCX, TXT, MD, CSV, JSON, and HTML.");
+      setContent("");
+      return;
+    }
+
+    const isTextLike = /\.(txt|md|csv|json|html|htm)$/i.test(file.name);
+    if (!isTextLike) {
+      setError(null);
+      setContent("");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      setContent(text);
+      setError(null);
+    } catch {
+      setError("Could not read the selected file.");
+      setContent("");
+    }
+  };
 
   useEffect(() => {
     if (!selectedRun) {
@@ -672,29 +711,145 @@ export default function EvaluationAgentView({
           ) : null}
 
           <div>
-            <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
-              <span>Assignment instructions & questions</span>
-              <span className="text-slate-500">Paste the homework prompt or generated assignment</span>
+            <p className="mb-2 text-[11px] font-semibold text-slate-200">
+              Assignment instructions & questions
+            </p>
+            <div className="mb-2 inline-flex rounded-full bg-slate-900/80 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignmentInputMode("text");
+                  setAssignmentUploadError(null);
+                }}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  assignmentInputMode === "text"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Paste text
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignmentInputMode("file")}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  assignmentInputMode === "file"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Upload file
+              </button>
             </div>
-            <textarea
-              value={assignment}
-              onChange={(event) => setAssignment(event.target.value)}
-              placeholder="Paste the homework description and questions."
-              className="min-h-[110px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
-            />
+
+            {assignmentInputMode === "text" ? (
+              <textarea
+                value={assignment}
+                onChange={(event) => setAssignment(event.target.value)}
+                placeholder="Paste the homework description and questions."
+                className="min-h-[110px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+              />
+            ) : (
+              <div className="space-y-2">
+                <label className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-950/50 px-4 text-center text-sm text-slate-300 transition-colors hover:border-sky-500/80 hover:bg-slate-900/70">
+                  <span className="rounded-full border border-slate-700 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                    שאלה פתוחה
+                  </span>
+                  <span className="font-medium">Drop a file here or click to browse</span>
+                  <span className="text-xs text-slate-400">
+                    Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm"
+                    onChange={(event) =>
+                      handleFileChange(
+                        event.target.files?.[0],
+                        setAssignment,
+                        setAssignmentUploadError,
+                      )
+                    }
+                    className="hidden"
+                  />
+                </label>
+                {assignmentUploadError ? (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {assignmentUploadError}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div>
-            <div className="mb-1 flex items-center justify-between text-[11px] text-slate-300">
-              <span>Grading criteria / rubric</span>
-              <span className="text-slate-500">One line per criterion works best</span>
+            <p className="mb-2 text-[11px] font-semibold text-slate-200">
+              Grading criteria / rubric
+            </p>
+            <div className="mb-2 inline-flex rounded-full bg-slate-900/80 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setCriteriaInputMode("text");
+                  setCriteriaUploadError(null);
+                }}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  criteriaInputMode === "text"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Paste text
+              </button>
+              <button
+                type="button"
+                onClick={() => setCriteriaInputMode("file")}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  criteriaInputMode === "file"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Upload file
+              </button>
             </div>
-            <textarea
-              value={criteria}
-              onChange={(event) => setCriteria(event.target.value)}
-              placeholder="List the rubric or grading criteria."
-              className="min-h-[100px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
-            />
+
+            {criteriaInputMode === "text" ? (
+              <textarea
+                value={criteria}
+                onChange={(event) => setCriteria(event.target.value)}
+                placeholder="List the rubric or grading criteria."
+                className="min-h-[100px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+              />
+            ) : (
+              <div className="space-y-2">
+                <label className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-950/50 px-4 text-center text-sm text-slate-300 transition-colors hover:border-sky-500/80 hover:bg-slate-900/70">
+                  <span className="rounded-full border border-slate-700 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                    File
+                  </span>
+                  <span className="font-medium">Drop a file here or click to browse</span>
+                  <span className="text-xs text-slate-400">
+                    Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm"
+                    onChange={(event) =>
+                      handleFileChange(
+                        event.target.files?.[0],
+                        setCriteria,
+                        setCriteriaUploadError,
+                      )
+                    }
+                    className="hidden"
+                  />
+                </label>
+                {criteriaUploadError ? (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {criteriaUploadError}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
@@ -716,7 +871,7 @@ export default function EvaluationAgentView({
                   onClick={() => setManualQuestions((current) => [...current, createEmptyQuestion("open")])}
                   className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-500/15"
                 >
-                  + Add open
+                  + Add open question 
                 </button>
               </div>
             </div>
@@ -840,12 +995,64 @@ export default function EvaluationAgentView({
               <span>Student submission</span>
               <span className="text-slate-500">The answer you want to evaluate</span>
             </div>
-            <textarea
-              value={submission}
-              onChange={(event) => setSubmission(event.target.value)}
-              placeholder="Paste the student's answer, separated by Question 1 / Question 2 when possible."
-              className="min-h-[150px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
-            />
+
+            <div className="mb-2 inline-flex rounded-full bg-slate-900/80 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmissionInputMode("text");
+                  setSubmissionUploadError(null);
+                }}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  submissionInputMode === "text"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Paste text
+              </button>
+              <button
+                type="button"
+                onClick={() => setSubmissionInputMode("file")}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  submissionInputMode === "file"
+                    ? "bg-sky-500 text-slate-50"
+                    : "text-slate-300 hover:text-slate-100"
+                }`}
+              >
+                Upload file
+              </button>
+            </div>
+
+            {submissionInputMode === "text" ? (
+              <textarea
+                value={submission}
+                onChange={(event) => setSubmission(event.target.value)}
+                placeholder="Paste the student's answer, separated by Question 1 / Question 2 when possible."
+                className="min-h-[150px] w-full resize-y rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 shadow-inner placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+              />
+            ) : (
+              <div className="space-y-2">
+                <label className="flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-slate-950/50 px-4 text-center text-sm text-slate-300 transition-colors hover:border-sky-500/80 hover:bg-slate-900/70">
+                  <span className="rounded-full border border-slate-700 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                    File
+                  </span>
+                  <span className="font-medium">Drop a file here or click to browse</span>
+                  <span className="text-xs text-slate-400">Supported: PDF, DOCX, TXT, MD, CSV, JSON, HTML</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm"
+                    onChange={(event) => handleFileChange(event.target.files?.[0], setSubmission, setSubmissionUploadError)}
+                    className="hidden"
+                  />
+                </label>
+                {submissionUploadError ? (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {submissionUploadError}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
 
