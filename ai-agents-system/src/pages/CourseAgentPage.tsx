@@ -163,7 +163,11 @@ export default function CourseAgentPage() {
                 clearSelectionVersion={clearSelectionVersion}
               />
             ) : (
-              <CodeReviewAgentView />
+              <CodeReviewAgentView
+                selectedRun={selectedRun}
+                onClearSelectedRun={() => handleRunSelect(null)}
+                clearSelectionVersion={clearSelectionVersion}
+              />
             )}
           </div>
         </div>

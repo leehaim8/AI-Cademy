@@ -1,562 +1,647 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
+import { useParams } from "react-router-dom";
 
-type CodeReviewConfig = {
-  language: "Python" | "JavaScript" | "C" | "Java";
-  difficulty: "Easy" | "Medium" | "Hard";
-  mistakesLevel: 0 | 1 | 2 | 3;
-  outputStyle: "Concise" | "Detailed";
-  assignmentPrompt: string;
-  constraints: string;
+import AgentActionButton from "../../components/AgentActionButton";
+import {
+  fetchCodeReviewOptions,
+  runCodeReview,
+  type CodeReviewOptionsResponse,
+  type CodeReviewResponse,
+} from "../../lib/api";
+import { createRun, createSession } from "../../lib/sessionStore";
+import type { SessionRun } from "../../types/course";
+
+type CodeReviewAgentViewProps = {
+  selectedRun?: SessionRun | null;
+  onClearSelectedRun?: () => void;
+  clearSelectionVersion?: number;
 };
 
-type ReviewResult = {
+type RunMode = "review" | "generate";
+
+type SavedCodeReviewInput = {
+  language?: string;
+  difficulty_level?: string;
+  exercise_description?: string;
+  code?: string;
+  run_mode?: RunMode;
+};
+
+type SavedCodeReviewOutput = {
+  result?: CodeReviewResponse | null;
+};
+
+type ParsedReviewSections = {
   intent: string[];
-  positives: string[];
-  issues: string[];
+  strengths: string[];
+  risks: string[];
   improvements: string[];
   questions: string[];
 };
 
-type RunLogItem = {
-  id: string;
-  timestamp: string;
-  status: "info" | "success" | "warning" | "error";
-  message: string;
+const fallbackOptions: CodeReviewOptionsResponse = {
+  languages: ["Python", "Java", "C", "C++", "JavaScript"],
+  difficulty_levels: ["Beginner", "Intermediate", "Advanced"],
 };
 
-type AgentState =
-  | "idle"
-  | "generating"
-  | "code_ready"
-  | "reviewing"
-  | "reviewed"
-  | "error";
+const sectionMatchers: Array<{
+  key: keyof ParsedReviewSections;
+  pattern: RegExp;
+}> = [
+  {
+    key: "intent",
+    pattern: /^\s*(?:1\.\s*)?what the code is trying to do\s*:?\s*$/i,
+  },
+  {
+    key: "strengths",
+    pattern: /^\s*(?:2\.\s*)?what is good in the solution\s*:?\s*$/i,
+  },
+  {
+    key: "risks",
+    pattern: /^\s*(?:3\.\s*)?problems,\s*weaknesses,\s*or\s*risks\s*:?\s*$/i,
+  },
+  {
+    key: "improvements",
+    pattern: /^\s*(?:4\.\s*)?conceptual improvements\s*:?\s*$/i,
+  },
+  {
+    key: "questions",
+    pattern: /^\s*(?:5\.\s*)?reflection questions for the learner\s*:?\s*$/i,
+  },
+];
 
-type TabKey = "code" | "review" | "log";
+const emptySections = (): ParsedReviewSections => ({
+  intent: [],
+  strengths: [],
+  risks: [],
+  improvements: [],
+  questions: [],
+});
 
-type LastAction = "generate" | "review" | null;
+function normalizeSectionContent(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^[-*•]\s*/, "").replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
 
-const defaultConfig: CodeReviewConfig = {
-  language: "Python",
-  difficulty: "Medium",
-  mistakesLevel: 2,
-  outputStyle: "Detailed",
-  assignmentPrompt: "",
-  constraints: "",
-};
+  if (lines.length > 1) {
+    return lines;
+  }
 
-const randomDelay = (min = 700, max = 1400) =>
-  new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * (max - min)) + min));
+  if (lines.length === 1) {
+    return lines[0]
+      .split(/(?<=[.!?])\s+(?=[A-Z])/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
 
-const mockGenerateStudentCode = async (
-  config: CodeReviewConfig,
-): Promise<{ code: string }> => {
-  await randomDelay();
+  return [];
+}
 
-  const mistakes = config.mistakesLevel;
+function parsePedagogicalReview(review: string): ParsedReviewSections {
+  const sections = emptySections();
+  const lines = review.split(/\r?\n/);
+  let currentSection: keyof ParsedReviewSections | null = null;
+  let foundHeading = false;
+  const buckets: Record<keyof ParsedReviewSections, string[]> = emptySections();
 
-  const snippets: Record<CodeReviewConfig["language"], string[]> = {
-    Python: [
-      `def count_unique(nums):\n    seen = []\n    for n in nums:\n        if n not in seen:\n            seen.append(n)\n    return len(seen)\n\nprint(count_unique([1,2,2,3]))`,
-      `def sum_even(nums):\n    total = 0\n    for i in range(len(nums)):\n        if i % 2 == 0:\n            total += nums[i]\n    return total\n\nprint(sum_even([1,2,3,4]))`,
-      `def find_max(nums):\n    max_val = 0\n    for n in nums:\n        if n > max_val:\n            max_val = n\n    return max_val`,
-    ],
-    JavaScript: [
-      `function reverseWords(text) {\n  const parts = text.split(" ");\n  let out = [];\n  for (let i = parts.length; i >= 0; i--) {\n    out.push(parts[i]);\n  }\n  return out.join(" ");\n}\nconsole.log(reverseWords("hello world"));`,
-      `function isPrime(n) {\n  if (n <= 1) return true;\n  for (let i = 2; i < n; i++) {\n    if (n % i === 0) return false;\n  }\n  return true;\n}`,
-      `function average(nums) {\n  let total = 0;\n  nums.forEach((n) => (total += n));\n  return total / nums.length;\n}\nconsole.log(average([]));`,
-    ],
-    C: [
-      `#include <stdio.h>\nint main() {\n  int nums[] = {3, 1, 4};\n  int max = 0;\n  for (int i = 0; i <= 3; i++) {\n    if (nums[i] > max) max = nums[i];\n  }\n  printf("%d\\n", max);\n  return 0;\n}`,
-      `#include <stdio.h>\nint sum(int a, int b) {\n  return a + b;\n}\nint main() {\n  printf("%d\\n", sum(2, 3));\n}`,
-      `#include <stdio.h>\nint factorial(int n) {\n  if (n == 0) return 0;\n  return n * factorial(n - 1);\n}\n`,
-    ],
-    Java: [
-      `class Main {\n  static int min(int[] nums) {\n    int min = 0;\n    for (int n : nums) {\n      if (n < min) min = n;\n    }\n    return min;\n  }\n  public static void main(String[] args) {\n    System.out.println(min(new int[]{3,1,2}));\n  }\n}`,
-      `class Main {\n  static boolean isEven(int n) {\n    return n % 2 == 1;\n  }\n  public static void main(String[] args) {\n    System.out.println(isEven(4));\n  }\n}`,
-      `class Main {\n  static int sumUpTo(int n) {\n    int total = 0;\n    for (int i = 1; i < n; i++) {\n      total += i;\n    }\n    return total;\n  }\n}`,
-    ],
-  };
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+    const matchedSection = sectionMatchers.find((section) => section.pattern.test(line));
+    if (matchedSection) {
+      currentSection = matchedSection.key;
+      foundHeading = true;
+      return;
+    }
 
-  const baseSnippet = snippets[config.language][Math.min(mistakes, 2)];
+    if (!currentSection || !line) {
+      return;
+    }
 
-  const annotation = mistakes === 0
-    ? "// Student-like sample (clean)"
-    : `// Student-like sample with ${mistakes} common mistake${mistakes > 1 ? "s" : ""}`;
+    buckets[currentSection].push(line);
+  });
 
-  return {
-    code: `${annotation}\n${baseSnippet}`,
-  };
-};
+  if (!foundHeading) {
+    sections.improvements = normalizeSectionContent(review);
+    return sections;
+  }
 
-const mockRunCodeReview = async (
-  config: CodeReviewConfig,
-  _code: string,
-): Promise<ReviewResult> => {
-  await randomDelay(800, 1600);
+  (Object.keys(buckets) as Array<keyof ParsedReviewSections>).forEach((key) => {
+    sections[key] = normalizeSectionContent(buckets[key].join("\n"));
+  });
 
-  const detailed = config.outputStyle === "Detailed";
+  return sections;
+}
 
-  return {
-    intent: [
-      "The solution attempts to implement the requested algorithm in the chosen language.",
-      "It demonstrates a straightforward loop-based approach with minimal abstraction.",
-    ],
-    positives: [
-      "Readable naming for most variables.",
-      "Uses basic control flow appropriately for the task.",
-      detailed ? "Keeps the logic in a single function, which is easy to trace." : "Simple structure.",
-    ],
-    issues: [
-      "Edge cases are not handled (empty input, negative values, or zero length arrays).",
-      "There is at least one off-by-one or boundary issue in the loop.",
-      detailed
-        ? "The initialization choices (e.g., max/min defaults) can lead to incorrect results."
-        : "Initialization can be incorrect.",
-    ],
-    improvements: [
-      "Clarify assumptions and handle empty inputs early.",
-      "Prefer using built-in helpers when available, but explain time complexity tradeoffs.",
-      "Add small tests to validate edge cases before submission.",
-    ],
-    questions: [
-      "What happens if the input list is empty?",
-      "How would you change the loop bounds to avoid indexing beyond the array?",
-      "Can you think of a faster approach, and when would it matter?",
-    ],
-  };
-};
-
-export default function CodeReviewAgentView() {
-  const [config, setConfig] = useState<CodeReviewConfig>(defaultConfig);
-  const [studentCode, setStudentCode] = useState<string>("");
-  const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
-  const [agentState, setAgentState] = useState<AgentState>("idle");
-  const [activeTab, setActiveTab] = useState<TabKey>("code");
-  const [runLog, setRunLog] = useState<RunLogItem[]>([]);
+export default function CodeReviewAgentView({
+  selectedRun = null,
+  onClearSelectedRun,
+  clearSelectionVersion = 0,
+}: CodeReviewAgentViewProps) {
+  const { courseId = "", agentKey = "" } = useParams();
+  const [options, setOptions] = useState<CodeReviewOptionsResponse>(fallbackOptions);
+  const [language, setLanguage] = useState(fallbackOptions.languages[0]);
+  const [difficultyLevel, setDifficultyLevel] = useState(
+    fallbackOptions.difficulty_levels[1],
+  );
+  const [exerciseDescription, setExerciseDescription] = useState("");
+  const [code, setCode] = useState("");
+  const [result, setResult] = useState<CodeReviewResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastAction, setLastAction] = useState<LastAction>(null);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "success" | "error">("idle");
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeRunMode, setActiveRunMode] = useState<RunMode | null>(null);
 
-  const stepIndex = useMemo(() => {
-    if (agentState === "generating") return 1;
-    if (agentState === "code_ready") return 1;
-    if (agentState === "reviewing") return 2;
-    if (agentState === "reviewed") return 2;
-    if (agentState === "error") return lastAction === "review" ? 2 : 1;
-    return 0;
-  }, [agentState, lastAction]);
+  const parsedReview = useMemo(
+    () => parsePedagogicalReview(result?.pedagogical_review ?? ""),
+    [result],
+  );
 
-  const addLog = (status: RunLogItem["status"], message: string) => {
-    setRunLog((prev) => [
-      {
-        id: crypto.randomUUID(),
-        timestamp: new Date().toLocaleTimeString(),
-        status,
-        message,
-      },
-      ...prev,
-    ]);
+  const inputCodeLineCount = useMemo(() => {
+    const trimmed = code.trim();
+    return trimmed ? trimmed.split(/\r?\n/).length : 0;
+  }, [code]);
+
+  const displayedCode = result?.generated_sample_solution || code;
+
+  const loadOptions = async () => {
+    try {
+      const nextOptions = await fetchCodeReviewOptions();
+      setOptions(nextOptions);
+      setLanguage((current) =>
+        nextOptions.languages.includes(current) ? current : nextOptions.languages[0],
+      );
+      setDifficultyLevel((current) =>
+        nextOptions.difficulty_levels.includes(current)
+          ? current
+          : nextOptions.difficulty_levels[0],
+      );
+      setOptionsError(null);
+    } catch (error) {
+      setOptions(fallbackOptions);
+      setOptionsError(
+        error instanceof Error
+          ? `${error.message} Using fallback options in the form.`
+          : "Could not load code review options. Using fallback options.",
+      );
+    }
   };
 
-  const handleGenerateStudentCode = async () => {
-    setErrorMessage(null);
-    setLastAction("generate");
+  useEffect(() => {
+    void loadOptions();
+  }, []);
 
-    if (!config.assignmentPrompt.trim()) {
-      setAgentState("error");
-      setErrorMessage("Please provide the assignment prompt first.");
-      addLog("warning", "Missing assignment prompt");
+  useEffect(() => {
+    if (!selectedRun) {
       return;
     }
 
-    setAgentState("generating");
-    addLog("info", "Generating student code");
+    const inputData =
+      selectedRun.input_data && typeof selectedRun.input_data === "object"
+        ? (selectedRun.input_data as SavedCodeReviewInput)
+        : null;
+    const outputData =
+      selectedRun.output_data && typeof selectedRun.output_data === "object"
+        ? (selectedRun.output_data as SavedCodeReviewOutput)
+        : null;
 
-    try {
-      const result = await mockGenerateStudentCode(config);
-      setStudentCode(result.code);
-      setReviewResult(null);
-      setAgentState("code_ready");
-      setActiveTab("code");
-      addLog("success", "Student code generated");
-    } catch (error) {
-      setAgentState("error");
-      setErrorMessage("Failed to generate student code. Please retry.");
-      addLog("error", "Code generation failed");
+    if (typeof inputData?.language === "string" && inputData.language.trim()) {
+      setLanguage(inputData.language.trim());
     }
-  };
+    if (
+      typeof inputData?.difficulty_level === "string" &&
+      inputData.difficulty_level.trim()
+    ) {
+      setDifficultyLevel(inputData.difficulty_level.trim());
+    }
+    if (typeof inputData?.exercise_description === "string") {
+      setExerciseDescription(inputData.exercise_description);
+    }
+    if (typeof inputData?.code === "string") {
+      setCode(inputData.code);
+    }
 
-  const handleRunReview = async () => {
-    if (!studentCode) return;
+    setResult(outputData?.result ?? null);
     setErrorMessage(null);
-    setLastAction("review");
-    setAgentState("reviewing");
-    setActiveTab("review");
-    addLog("info", "Running pedagogical review");
+    setSaveMessage(null);
+    setSaveState("idle");
+    setActiveRunMode(inputData?.run_mode ?? null);
+  }, [selectedRun]);
 
-    try {
-      const result = await mockRunCodeReview(config, studentCode);
-      setReviewResult(result);
-      setAgentState("reviewed");
-      addLog("success", "Review completed");
-    } catch (error) {
-      setAgentState("error");
-      setErrorMessage("Review failed. Please retry.");
-      addLog("error", "Review failed");
-    }
-  };
+  useEffect(() => {
+    setLanguage(fallbackOptions.languages[0]);
+    setDifficultyLevel(fallbackOptions.difficulty_levels[1]);
+    setExerciseDescription("");
+    setCode("");
+    setResult(null);
+    setErrorMessage(null);
+    setSaveMessage(null);
+    setSaveState("idle");
+    setIsLoading(false);
+    setActiveRunMode(null);
+  }, [clearSelectionVersion]);
 
-  const handleRetry = () => {
-    if (lastAction === "review") {
-      handleRunReview();
+  const handleRun = async (mode: RunMode) => {
+    if (mode === "review" && !code.trim()) {
+      setErrorMessage("Paste code before running a code review.");
       return;
     }
-    handleGenerateStudentCode();
+
+    setErrorMessage(null);
+    setSaveMessage(null);
+    setSaveState("idle");
+    setIsLoading(true);
+    setActiveRunMode(mode);
+
+    try {
+      const response = await runCodeReview({
+        language,
+        difficulty_level: difficultyLevel,
+        exercise_description: exerciseDescription.trim() || undefined,
+        code: mode === "review" ? code.trim() : "",
+        generate_sample_if_empty: mode === "generate",
+      });
+      setResult(response);
+      if (mode === "generate") {
+        setCode(response.generated_sample_solution);
+      }
+    } catch (error) {
+      setResult(null);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Code review failed. Please try again.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReset = () => {
-    setConfig(defaultConfig);
-    setStudentCode("");
-    setReviewResult(null);
-    setAgentState("idle");
-    setActiveTab("code");
-    setRunLog([]);
-    setErrorMessage(null);
-    setLastAction(null);
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await handleRun("review");
+  };
+
+  const handleSaveOutput = async () => {
+    if (!courseId || !agentKey) {
+      setSaveState("error");
+      setSaveMessage("Course context is missing, so the review could not be saved.");
+      return;
+    }
+
+    if (!result) {
+      setSaveState("error");
+      setSaveMessage("Run the code review before saving the output.");
+      return;
+    }
+
+    const timestamp = new Date();
+    const timestampLabel = timestamp.toLocaleString();
+    const sessionTitle = `${language} ${difficultyLevel} code review · ${timestampLabel}`;
+
+    try {
+      const session = await createSession(
+        courseId,
+        agentKey,
+        sessionTitle,
+        [
+          "Code review output",
+          `Timestamp: ${timestampLabel}`,
+          `Mode: ${result.source}`,
+        ].join("\n"),
+      );
+
+      await createRun(
+        session.id,
+        {
+          language,
+          difficulty_level: difficultyLevel,
+          exercise_description: exerciseDescription,
+          code,
+          run_mode: activeRunMode,
+        },
+        { result },
+        "success",
+      );
+
+      setSaveState("success");
+      setSaveMessage("Code review output saved to session history.");
+      onClearSelectedRun?.();
+    } catch (error) {
+      setSaveState("error");
+      setSaveMessage(
+        error instanceof Error ? error.message : "Could not save code review output.",
+      );
+    }
   };
 
   const handleCopyCode = async () => {
+    if (!displayedCode.trim()) {
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(studentCode);
-      addLog("success", "Code copied to clipboard");
-    } catch (error) {
-      addLog("warning", "Clipboard copy failed");
+      await navigator.clipboard.writeText(displayedCode);
+      setSaveState("success");
+      setSaveMessage("Code copied to clipboard.");
+    } catch {
+      setSaveState("error");
+      setSaveMessage("Could not copy the code.");
     }
   };
 
-  const codeReady =
-    agentState === "code_ready" || agentState === "reviewing" || agentState === "reviewed";
+  const clearForm = () => {
+    setExerciseDescription("");
+    setCode("");
+    setResult(null);
+    setErrorMessage(null);
+    setSaveMessage(null);
+    setSaveState("idle");
+    setActiveRunMode(null);
+  };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
-        <div className="flex flex-col gap-6">
-          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-lg font-semibold text-slate-100">
-                Teaching / Demonstration Code Review Agent
-              </h2>
-              <p className="text-sm text-slate-300">
-                Generates a student-like solution and then performs a pedagogical code review (demo only).
-              </p>
-            </div>
+    <div className="grid items-stretch gap-6 md:h-[max(64rem,calc(100vh-2rem))] md:grid-cols-[minmax(0,2fr)_minmax(0,1.45fr)]">
+      <form
+        onSubmit={handleSubmit}
+        className="flex h-full min-h-[40rem] flex-col gap-4 overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-100">Code review input</h2>
+          <div className="rounded-full border border-slate-700/80 bg-slate-950/50 px-3 py-1 text-[11px] text-slate-300">
+            Real backend agent
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-400">
+          Paste code to review it directly, or leave the code box empty and use sample
+          generation for the original teaching-demo flow.
+        </p>
+
+        {optionsError ? (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            {optionsError}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="rounded-xl border border-slate-800/60 bg-slate-950/35 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Language
+            </span>
+            <select
+              value={language}
+              onChange={(event) => setLanguage(event.target.value)}
+              className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+            >
+              {options.languages.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="rounded-xl border border-slate-800/60 bg-slate-950/35 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Difficulty
+            </span>
+            <select
+              value={difficultyLevel}
+              onChange={(event) => setDifficultyLevel(event.target.value)}
+              className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+            >
+              {options.difficulty_levels.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <label className="rounded-xl border border-slate-800/60 bg-slate-950/35 p-3">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Exercise description
+          </span>
+          <textarea
+            value={exerciseDescription}
+            onChange={(event) => setExerciseDescription(event.target.value)}
+            placeholder="Optional but recommended: describe the task the code is solving."
+            rows={4}
+            className="mt-3 min-h-[7.5rem] w-full resize-y rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+          />
+        </label>
+
+        <label className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-800/60 bg-slate-950/35 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Code to review
+            </span>
+            <span className="text-[11px] text-slate-500">
+              {inputCodeLineCount} line{inputCodeLineCount === 1 ? "" : "s"}
+            </span>
+          </div>
+          <textarea
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="Paste the student code here. If you leave this empty, use 'Generate sample + review' instead."
+            className="mt-3 min-h-[18rem] flex-1 resize-y rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/70"
+          />
+        </label>
+
+        {errorMessage ? (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <AgentActionButton
+              type="submit"
+              variant="emerald"
+              disabled={isLoading || !code.trim()}
+            >
+              {isLoading && activeRunMode === "review"
+                ? "Running review..."
+                : "Run code review"}
+            </AgentActionButton>
+            <AgentActionButton
+              onClick={() => void handleRun("generate")}
+              variant="violet"
+              disabled={isLoading}
+            >
+              {isLoading && activeRunMode === "generate"
+                ? "Generating sample..."
+                : "Generate sample + review"}
+            </AgentActionButton>
           </div>
 
-          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-            <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-semibold text-slate-100">Inputs</h3>
+          <AgentActionButton onClick={clearForm} variant="rose" disabled={isLoading}>
+            Clear form
+          </AgentActionButton>
+        </div>
+      </form>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
+      <div className="flex h-full min-h-[40rem] flex-col gap-4 overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-900/80 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-100">Pedagogical review</h2>
+            <p className="mt-1 text-xs text-slate-400">
+              The results panel reflects the actual backend agent response.
+            </p>
+          </div>
+          {result ? (
+            <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-200">
+              {result.source === "submitted_code" ? "Reviewed submitted code" : "Generated sample"}
+            </span>
+          ) : null}
+        </div>
+
+        {!result && !isLoading ? (
+          <div className="rounded-xl border border-dashed border-slate-700/80 bg-slate-950/40 px-4 py-6 text-center text-[11px] text-slate-400">
+            <p className="mb-1 font-medium text-slate-200">No review yet</p>
+            <p>
+              Run the code review from the left. The generated explanation, strengths,
+              risks, improvements, and learner questions will appear here.
+            </p>
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-3 text-xs text-sky-100">
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-100 border-t-transparent" />
+              <span>
+                {activeRunMode === "generate"
+                  ? "Generating a student-like sample and running the review..."
+                  : "Reviewing the submitted code..."}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        {result ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <AgentActionButton onClick={handleSaveOutput} variant="sky">
+                Save output
+              </AgentActionButton>
+              <AgentActionButton onClick={handleCopyCode} variant="emerald">
+                Copy reviewed code
+              </AgentActionButton>
+            </div>
+
+            {saveMessage ? (
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs ${
+                  saveState === "success"
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                }`}
+              >
+                {saveMessage}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
                   Language
-                  <select
-                    value={config.language}
-                    onChange={(event) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        language: event.target.value as CodeReviewConfig["language"],
-                      }))
-                    }
-                    className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  >
-                    <option value="Python">Python</option>
-                    <option value="JavaScript">JavaScript</option>
-                    <option value="C">C</option>
-                    <option value="Java">Java</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {result.specification.language}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
                   Difficulty
-                  <select
-                    value={config.difficulty}
-                    onChange={(event) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        difficulty: event.target.value as CodeReviewConfig["difficulty"],
-                      }))
-                    }
-                    className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  >
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                  Mistakes level
-                  <select
-                    value={config.mistakesLevel}
-                    onChange={(event) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        mistakesLevel: Number(event.target.value) as CodeReviewConfig["mistakesLevel"],
-                      }))
-                    }
-                    className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  >
-                    <option value={0}>0 (clean)</option>
-                    <option value={1}>1</option>
-                    <option value={2}>2</option>
-                    <option value={3}>3</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                  Output style
-                  <select
-                    value={config.outputStyle}
-                    onChange={(event) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        outputStyle: event.target.value as CodeReviewConfig["outputStyle"],
-                      }))
-                    }
-                    className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                  >
-                    <option value="Concise">Concise</option>
-                    <option value="Detailed">Detailed</option>
-                  </select>
-                </label>
-              </div>
-
-              <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                Assignment prompt
-                <textarea
-                  value={config.assignmentPrompt}
-                  onChange={(event) =>
-                    setConfig((prev) => ({ ...prev, assignmentPrompt: event.target.value }))
-                  }
-                  placeholder="Paste the exercise / question here…"
-                  rows={4}
-                  className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                />
-              </label>
-
-              <label className="flex flex-col gap-2 text-xs font-medium text-slate-300">
-                Constraints / Notes (optional)
-                <textarea
-                  value={config.constraints}
-                  onChange={(event) =>
-                    setConfig((prev) => ({ ...prev, constraints: event.target.value }))
-                  }
-                  placeholder="Optional: constraints, edge cases, rubric…"
-                  rows={3}
-                  className="rounded-xl border border-slate-800/70 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-slate-500"
-                />
-              </label>
-
-              {errorMessage ? (
-                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{errorMessage}</span>
-                    <button
-                      onClick={handleRetry}
-                      className="rounded-lg border border-rose-400/60 px-2 py-1 text-xs text-rose-100 hover:border-rose-300"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={handleGenerateStudentCode}
-                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-white"
-                  disabled={agentState === "generating" || agentState === "reviewing"}
-                >
-                  {agentState === "generating" ? "Generating..." : "Generate student code"}
-                </button>
-                <button
-                  onClick={handleRunReview}
-                  disabled={!codeReady || agentState === "reviewing"}
-                  className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {agentState === "reviewing" ? "Reviewing..." : "Run code review"}
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="rounded-xl border border-transparent px-4 py-2 text-sm text-slate-400 hover:text-slate-200"
-                >
-                  Reset
-                </button>
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {result.specification.difficulty_level}
+                </p>
               </div>
             </div>
-          </div>
 
-          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-            <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-semibold text-slate-100">Progress</h3>
-              <div className="flex flex-col gap-3 text-xs text-slate-300">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                    Exercise description
+                  </p>
+                  <p className="mt-2 whitespace-pre-line text-[11px] leading-relaxed text-slate-200">
+                    {result.exercise_description}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                    Reviewed code
+                  </p>
+                  <pre className="mt-2 overflow-x-auto rounded-lg border border-slate-800/80 bg-slate-950/80 p-3 text-[11px] text-slate-200">
+                    <code>{displayedCode}</code>
+                  </pre>
+                </div>
+
                 {[
-                  { label: "1. Student Code Generation", index: 1 },
-                  { label: "2. Pedagogical Review", index: 2 },
-                ].map((step) => (
+                  {
+                    title: "What the code is trying to do",
+                    items: parsedReview.intent,
+                  },
+                  {
+                    title: "Strengths",
+                    items: parsedReview.strengths,
+                  },
+                  {
+                    title: "Common mistakes or risks",
+                    items: parsedReview.risks,
+                  },
+                  {
+                    title: "Conceptual improvement suggestions",
+                    items: parsedReview.improvements,
+                  },
+                  {
+                    title: "Reflection questions for the student",
+                    items: parsedReview.questions,
+                  },
+                ].map((section) => (
                   <div
-                    key={step.label}
-                    className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
-                      stepIndex >= step.index
-                        ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
-                        : "border-slate-800/70 bg-slate-950/40 text-slate-400"
-                    }`}
+                    key={section.title}
+                    className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"
                   >
-                    <span>{step.label}</span>
-                    {stepIndex === step.index ? (
-                      <span className="flex items-center gap-2 text-[11px] uppercase tracking-wide">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                        Active
-                      </span>
-                    ) : null}
+                    <p className="text-sm font-semibold text-slate-100">{section.title}</p>
+                    {section.items.length > 0 ? (
+                      <ul className="mt-3 space-y-2 text-[11px] leading-relaxed text-slate-300">
+                        {section.items.map((item, index) => (
+                          <li key={`${section.title}-${index}`} className="flex gap-2">
+                            <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-sky-400" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        This section was not returned explicitly by the agent.
+                      </p>
+                    )}
                   </div>
                 ))}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                    Raw agent review
+                  </p>
+                  <pre className="mt-2 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-300">
+                    {result.pedagogical_review}
+                  </pre>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 backdrop-blur-xl p-5 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
-                {[
-                  { key: "code", label: "Student Code" },
-                  { key: "review", label: "Review" },
-                  { key: "log", label: "Run Log" },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key as TabKey)}
-                    className={`rounded-xl px-3 py-2 transition ${
-                      activeTab === tab.key
-                        ? "bg-slate-100 text-slate-900"
-                        : "border border-slate-800/70 bg-slate-950/40 text-slate-300 hover:border-slate-600"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {activeTab === "code" ? (
-                <div className="flex flex-col gap-3">
-                  {agentState === "generating" ? (
-                    <div className="space-y-3">
-                      <div className="h-4 w-2/3 animate-pulse rounded bg-slate-800/80" />
-                      <div className="h-24 w-full animate-pulse rounded bg-slate-800/60" />
-                    </div>
-                  ) : studentCode ? (
-                    <>
-                      <div className="flex items-center justify-between gap-3">
-                        <h4 className="text-sm font-semibold text-slate-100">
-                          Student-like Example Code
-                        </h4>
-                        <button
-                          onClick={handleCopyCode}
-                          className="rounded-lg border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:border-slate-500"
-                        >
-                          Copy code
-                        </button>
-                      </div>
-                      <pre className="overflow-x-auto rounded-xl border border-slate-800/70 bg-slate-950/60 p-3 text-xs text-slate-200">
-                        <code>{studentCode}</code>
-                      </pre>
-                      <p className="text-[11px] text-amber-200/80">
-                        This code intentionally may include mistakes for learning.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-slate-400">
-                      Generate student code to see a sample implementation.
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
-              {activeTab === "review" ? (
-                <div className="flex flex-col gap-3">
-                  {agentState === "reviewing" ? (
-                    <div className="space-y-3">
-                      <div className="h-4 w-1/2 animate-pulse rounded bg-slate-800/80" />
-                      <div className="h-24 w-full animate-pulse rounded bg-slate-800/60" />
-                      <div className="h-24 w-full animate-pulse rounded bg-slate-800/60" />
-                    </div>
-                  ) : reviewResult ? (
-                    <div className="flex flex-col gap-3 text-xs text-slate-200">
-                      {[
-                        { title: "What the code is trying to do", items: reviewResult.intent },
-                        { title: "What’s good", items: reviewResult.positives },
-                        { title: "Issues / Risks", items: reviewResult.issues },
-                        { title: "Conceptual improvements", items: reviewResult.improvements },
-                        { title: "Thinking questions", items: reviewResult.questions },
-                      ].map((section) => (
-                        <div
-                          key={section.title}
-                          className="rounded-xl border border-slate-800/70 bg-slate-950/40 p-3"
-                        >
-                          <h4 className="text-sm font-semibold text-slate-100">{section.title}</h4>
-                          <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-300">
-                            {section.items.map((item) => (
-                              <li key={item}>• {item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">
-                      Run the code review after generating student code.
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
-              {activeTab === "log" ? (
-                <div className="flex flex-col gap-2 text-xs text-slate-300">
-                  {runLog.length === 0 ? (
-                    <p className="text-xs text-slate-400">Run activity will appear here.</p>
-                  ) : (
-                    runLog.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-2"
-                      >
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] text-slate-500">{item.timestamp}</span>
-                          <span className="text-xs text-slate-200">{item.message}</span>
-                        </div>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                            item.status === "success"
-                              ? "bg-emerald-500/20 text-emerald-200"
-                              : item.status === "error"
-                                ? "bg-rose-500/20 text-rose-200"
-                                : item.status === "warning"
-                                  ? "bg-amber-500/20 text-amber-200"
-                                  : "bg-slate-700/40 text-slate-300"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

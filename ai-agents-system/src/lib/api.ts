@@ -191,6 +191,37 @@ export type HomeworkCheckResponse = {
   overall_feedback: string;
 };
 
+export type CodeReviewOptionsResponse = {
+  languages: string[];
+  difficulty_levels: string[];
+};
+
+export type CodeReviewPayload = {
+  language: string;
+  difficulty_level: string;
+  exercise_description?: string;
+  code?: string;
+  generate_sample_if_empty?: boolean;
+};
+
+export type CodeReviewSpecification = {
+  language: string;
+  difficulty_level: string;
+  student_level: string;
+  task_type: string;
+  topic: string;
+  include_common_mistakes: string;
+  desired_review_focus: string;
+};
+
+export type CodeReviewResponse = {
+  source: "submitted_code" | "generated_sample";
+  specification: CodeReviewSpecification;
+  exercise_description: string;
+  generated_sample_solution: string;
+  pedagogical_review: string;
+};
+
 export type TopicExtractionUploadPayload = {
   seminar_topic: string;
   files: File[];
@@ -651,4 +682,28 @@ export async function generateHomeworkWithFile(
   }
 
   return (await res.json()) as HomeworkGenerationResponse;
+}
+
+export async function fetchCodeReviewOptions(): Promise<CodeReviewOptionsResponse> {
+  const res = await fetch(`${API_BASE_URL}/code-review/options`);
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as CodeReviewOptionsResponse;
+}
+
+export async function runCodeReview(
+  payload: CodeReviewPayload,
+): Promise<CodeReviewResponse> {
+  const res = await fetch(`${API_BASE_URL}/code-review/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return (await res.json()) as CodeReviewResponse;
 }

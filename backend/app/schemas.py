@@ -241,3 +241,34 @@ class HomeworkCheckResponse(BaseModel):
     per_question_scores: dict[str, float] = Field(default_factory=dict)
     per_requirement_results: list[HomeworkCheckRequirementResultOut] = Field(default_factory=list)
     overall_feedback: str
+
+
+class CodeReviewRequest(BaseModel):
+    language: str = Field(min_length=1, max_length=50)
+    difficulty_level: str = Field(min_length=1, max_length=50)
+    exercise_description: Optional[str] = Field(default=None, max_length=5000)
+    code: Optional[str] = Field(default=None, max_length=200_000)
+    generate_sample_if_empty: bool = True
+
+
+class CodeReviewSpecificationOut(BaseModel):
+    language: str
+    difficulty_level: str
+    student_level: str
+    task_type: str
+    topic: str
+    include_common_mistakes: str
+    desired_review_focus: str
+
+
+class CodeReviewResponse(BaseModel):
+    source: Literal["submitted_code", "generated_sample"]
+    specification: CodeReviewSpecificationOut
+    exercise_description: str
+    generated_sample_solution: str
+    pedagogical_review: str
+
+
+class CodeReviewOptionsResponse(BaseModel):
+    languages: list[str] = Field(default_factory=list)
+    difficulty_levels: list[str] = Field(default_factory=list)
